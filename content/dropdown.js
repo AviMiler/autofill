@@ -74,6 +74,27 @@
       background: #f0f0f0;
       color: #333;
     }
+    .af-close {
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      width: 20px;
+      height: 20px;
+      border: none;
+      background: transparent;
+      color: #999;
+      font-size: 14px;
+      line-height: 20px;
+      text-align: center;
+      cursor: pointer;
+      border-radius: 4px;
+      padding: 0;
+      z-index: 1;
+    }
+    .af-close:hover {
+      background: #eee;
+      color: #333;
+    }
   `;
 
   let host = null;
@@ -109,6 +130,15 @@
     shadow.appendChild(dropdown);
 
     isolateShadow(dropdown);
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'af-close';
+    closeBtn.textContent = '✕';
+    closeBtn.addEventListener('mousedown', e => {
+      e.preventDefault();
+      hide();
+    });
+    dropdown.appendChild(closeBtn);
 
     allItems = [];
 
