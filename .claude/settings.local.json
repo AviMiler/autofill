@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\User\\\\OneDrive\\\\מסמכים\\\\AI projects\\\\Work\\\\extension\\\\chrome\\\\AutoFill\" -Recurse -Force -Filter \"Thumbs.db\" | ForEach-Object { Remove-Item $_.FullName -Force; \"Deleted: $\\($_.FullName\\)\" })"
+    ]
+  }
+}

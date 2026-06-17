@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, sans-serif;
+      width: 300px; min-height: 80px;
+      background: #fff; color: #222;
+    }
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px 10px;
+      border-bottom: 1px solid #eee;
+    }
+    header h1 { font-size: 14px; font-weight: 600; }
+    .count { font-size: 11px; background: #4f7aff; color: #fff;
+      border-radius: 10px; padding: 1px 7px; }
+    #rules-list { padding: 8px 0; max-height: 380px; overflow-y: auto; }
+    .af-group-title {
+      font-size: 10px; color: #999; text-transform: uppercase;
+      padding: 6px 16px 2px; letter-spacing: .5px;
+    }
+    .af-rule-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 16px; cursor: default;
+    }
+    .af-rule-row:hover { background: #f5f5f5; }
+    .af-rule-info { flex: 1; min-width: 0; }
+    .af-rule-label { font-size: 13px; font-weight: 500;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .af-rule-meta { font-size: 11px; color: #888; margin-top: 1px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .af-toggle {
+      position: relative; width: 32px; height: 18px; flex-shrink: 0;
+    }
+    .af-toggle input { opacity: 0; width: 0; height: 0; }
+    .af-slider {
+      position: absolute; inset: 0; background: #ccc;
+      border-radius: 18px; cursor: pointer; transition: .2s;
+    }
+    .af-slider:before {
+      content: ''; position: absolute;
+      height: 13px; width: 13px; left: 2.5px; bottom: 2.5px;
+      background: #fff; border-radius: 50%; transition: .2s;
+    }
+    input:checked + .af-slider { background: #4f7aff; }
+    input:checked + .af-slider:before { transform: translateX(14px); }
+    .af-del-btn {
+      border: none; background: none; cursor: pointer;
+      color: #ccc; font-size: 15px; padding: 2px 4px; line-height: 1;
+    }
+    .af-del-btn:hover { color: #c00; }
+    footer {
+      padding: 10px 16px; border-top: 1px solid #eee;
+      font-size: 11px; color: #aaa; text-align: center;
+    }
+    .empty {
+      padding: 24px 16px; text-align: center; color: #999; font-size: 13px;
+    }
+    #cred-section { padding: 12px 16px; }
+    .cred-header { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+    #cred-status { font-size: 11px; color: #888; margin-bottom: 8px; }
+    .cred-fields { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+    .cred-fields input {
+      width: 100%; padding: 5px 8px; font-size: 12px;
+      border: 1px solid #ddd; border-radius: 5px; outline: none;
+    }
+    .cred-fields input:focus { border-color: #4f7aff; }
+    .cred-pw-wrap { position: relative; display: flex; align-items: center; }
+    .cred-pw-wrap input { flex: 1; padding-left: 30px; }
+    #cred-toggle {
+      position: absolute; left: 4px;
+      background: none; border: none; cursor: pointer; font-size: 13px; padding: 0 4px;
+    }
+    .cred-actions { display: flex; gap: 8px; }
+    .cred-actions button {
+      flex: 1; padding: 5px; font-size: 12px; border-radius: 5px; cursor: pointer;
+      border: 1px solid #ddd; background: #f5f5f5;
+    }
+    #cred-save { background: #4f7aff; color: #fff; border-color: #4f7aff; }
+    #cred-save:hover { background: #3a66e0; }
+    .cred-actions button:not(#cred-save):hover { background: #eee; }
+    #cred-divider { border: none; border-top: 1px solid #eee; margin: 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>⚡ AutoFill</h1>
+    <span id="total-count" class="count">0</span>
+  </header>
+  <div id="cred-section">
+    <div class="cred-header">🔑 פרטי כניסה שמורים</div>
+    <div id="cred-status">לא מוגדר</div>
+    <div class="cred-fields">
+      <input type="text" id="cred-username" placeholder="שם משתמש / אימייל" dir="ltr" autocomplete="off">
+      <div class="cred-pw-wrap">
+        <input type="password" id="cred-password" placeholder="סיסמה" dir="ltr" autocomplete="off">
+        <button id="cred-toggle" title="הצג/הסתר סיסמה">👁</button>
+      </div>
+    </div>
+    <div class="cred-actions">
+      <button id="cred-save">שמור</button>
+      <button id="cred-clear">נקה</button>
+    </div>
+  </div>
+  <hr id="cred-divider">
+  <div id="rules-list"></div>
+  <footer>לחץ ימני על שדה כדי להוסיף אפשרויות</footer>
+  <script src="popup.js"></script>
+</body>
+</html>
