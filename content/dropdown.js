@@ -1,10 +1,12 @@
 // PUBLIC API: window.__afDropdown
-// show(anchorEl, items, onSelect, onEdit) → void
+// show(anchorEl, items, onSelect, onAdd, onManage) → void
 //   items: array of { name?, value } objects
 //          OR array of strings (treated as { value: s })
 //   Render: name present → two-line (bold name on top, gray value below).
 //           name absent  → single-line value.
 //   onSelect receives the value (always a string).
+//   onAdd   → opens config panel to add new entry for this field
+//   onManage → opens manager filtered to this field
 // hide()                                    → void
 // isVisible()                               → boolean
 // getAnchor()                               → element | null  — currently anchored field
@@ -62,18 +64,22 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .af-edit {
-      padding: 8px 14px;
-      cursor: pointer;
+    .af-footer {
+      display: flex;
       border-top: 1px solid #e8e8e8;
+    }
+    .af-footer-btn {
+      flex: 1;
+      padding: 8px 10px;
+      cursor: pointer;
       background: #fafafa;
       color: #666;
       font-size: 12px;
+      text-align: center;
+      border: none;
     }
-    .af-edit:hover, .af-edit.focused {
-      background: #f0f0f0;
-      color: #333;
-    }
+    .af-footer-btn:first-child { border-left: 1px solid #e8e8e8; }
+    .af-footer-btn:hover { background: #f0f0f0; color: #333; }
     .af-close {
       position: absolute;
       top: 4px;
@@ -114,7 +120,7 @@
     );
   }
 
-  function show(anchor, options, onSelect, onEdit) {
+  function show(anchor, options, onSelect, onAdd, onManage) {
     hide();
     anchorEl = anchor;
 
@@ -173,16 +179,22 @@
       allItems.push(item);
     });
 
-    const editBtn = document.createElement('div');
-    editBtn.className = 'af-item af-edit';
-    editBtn.textContent = '⚙️ ערוך אפשרויות';
-    editBtn.addEventListener('mousedown', e => {
-      e.preventDefault();
-      hide();
-      onEdit();
-    });
-    dropdown.appendChild(editBtn);
-    allItems.push(editBtn);
+    const footer = document.createElement('div');
+    footer.className = 'af-footer';
+
+    const addBtn = document.createElement('div');
+    addBtn.className = 'af-footer-btn';
+    addBtn.textContent = '➕ הוסף לשדה';
+    addBtn.addEventListener('mousedown', e => { e.preventDefault(); hide(); onAdd(); });
+
+    const manageBtn = document.createElement('div');
+    manageBtn.className = 'af-footer-btn';
+    manageBtn.textContent = '🗂 ניהול';
+    manageBtn.addEventListener('mousedown', e => { e.preventDefault(); hide(); onManage(); });
+
+    footer.appendChild(addBtn);
+    footer.appendChild(manageBtn);
+    dropdown.appendChild(footer);
 
     positionDropdown(anchor);
     document.body.appendChild(host);

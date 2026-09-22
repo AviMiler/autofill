@@ -15,22 +15,29 @@
       border-bottom: 1px solid #eee;
     }
     header h1 { font-size: 14px; font-weight: 600; }
+    .header-right { display: flex; align-items: center; gap: 8px; }
     .count { font-size: 11px; background: #4f7aff; color: #fff;
       border-radius: 10px; padding: 1px 7px; }
-    #rules-list { padding: 8px 0; max-height: 380px; overflow-y: auto; }
+    #open-manager {
+      font-size: 11px; padding: 3px 10px; border-radius: 5px;
+      border: 1px solid #4f7aff; background: #fff; color: #4f7aff;
+      cursor: pointer; font-family: inherit;
+    }
+    #open-manager:hover { background: #f0f4ff; }
+    #entries-list { padding: 8px 0; max-height: 380px; overflow-y: auto; }
     .af-group-title {
       font-size: 10px; color: #999; text-transform: uppercase;
       padding: 6px 16px 2px; letter-spacing: .5px;
     }
-    .af-rule-row {
+    .af-entry-row {
       display: flex; align-items: center; gap: 8px;
       padding: 8px 16px; cursor: default;
     }
-    .af-rule-row:hover { background: #f5f5f5; }
-    .af-rule-info { flex: 1; min-width: 0; }
-    .af-rule-label { font-size: 13px; font-weight: 500;
+    .af-entry-row:hover { background: #f5f5f5; }
+    .af-entry-info { flex: 1; min-width: 0; }
+    .af-entry-name { font-size: 13px; font-weight: 500;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .af-rule-meta { font-size: 11px; color: #888; margin-top: 1px;
+    .af-entry-meta { font-size: 11px; color: #888; margin-top: 1px;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .af-toggle {
       position: relative; width: 32px; height: 18px; flex-shrink: 0;
@@ -88,7 +95,10 @@
 <body>
   <header>
     <h1>⚡ AutoFill</h1>
-    <span id="total-count" class="count">0</span>
+    <div class="header-right">
+      <button id="open-manager">🗂 ניהול</button>
+      <span id="total-count" class="count">0</span>
+    </div>
   </header>
   <div id="cred-section">
     <div class="cred-header">🔑 פרטי כניסה שמורים</div>
@@ -106,8 +116,8 @@
     </div>
   </div>
   <hr id="cred-divider">
-  <div id="rules-list"></div>
-  <footer>לחץ ימני על שדה כדי להוסיף אפשרויות</footer>
+  <div id="entries-list"></div>
+  <footer>לחץ ימני על שדה כדי להוסיף מילוי</footer>
   <script src="popup.js"></script>
 </body>
 </html>

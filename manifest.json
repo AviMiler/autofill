@@ -18,6 +18,7 @@
         "content/dropdown.js",
         "content/config-panel.js",
         "content/credential.js",
+        "content/manager.js",
         "content/content.js"
       ],
       "run_at": "document_idle",
