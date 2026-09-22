@@ -1,10 +1,12 @@
 // PUBLIC API: window.__afDropdown
-// show(anchorEl, items, onSelect, onEdit) → void
+// show(anchorEl, items, onSelect, opts?) → void
 //   items: array of { name?, value } objects
 //          OR array of strings (treated as { value: s })
 //   Render: name present → two-line (bold name on top, gray value below).
 //           name absent  → single-line value.
 //   onSelect receives the value (always a string).
+//   opts.suppressAutoHideOnInput: true → skip auto-hide on input events
+//     (needed by snippet suggestions that re-show() on every keystroke)
 // hide()                                    → void
 // isVisible()                               → boolean
 // getAnchor()                               → element | null  — currently anchored field
@@ -62,18 +64,6 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .af-edit {
-      padding: 8px 14px;
-      cursor: pointer;
-      border-top: 1px solid #e8e8e8;
-      background: #fafafa;
-      color: #666;
-      font-size: 12px;
-    }
-    .af-edit:hover, .af-edit.focused {
-      background: #f0f0f0;
-      color: #333;
-    }
     .af-close {
       position: absolute;
       top: 4px;
@@ -105,8 +95,6 @@
   let allItems = [];
   let onAnchorInput = null;
 
-  // Events that — if they leak out of our shadow root — let host-page handlers
-  // steal focus or trigger their own UI. We stop them at the shadow boundary.
   const ISOLATED_EVENTS = ['mousedown', 'pointerdown', 'mouseup', 'click', 'focusin', 'focusout', 'keydown', 'keyup', 'keypress'];
   function isolateShadow(root) {
     ISOLATED_EVENTS.forEach(ev =>
@@ -114,7 +102,7 @@
     );
   }
 
-  function show(anchor, options, onSelect, onEdit) {
+  function show(anchor, options, onSelect, opts = {}) {
     hide();
     anchorEl = anchor;
 
@@ -165,7 +153,7 @@
       }
 
       item.addEventListener('mousedown', e => {
-        e.preventDefault(); // prevent field blur
+        e.preventDefault();
         onSelect(opt.value);
         hide();
       });
@@ -173,34 +161,22 @@
       allItems.push(item);
     });
 
-    const editBtn = document.createElement('div');
-    editBtn.className = 'af-item af-edit';
-    editBtn.textContent = '⚙️ ערוך אפשרויות';
-    editBtn.addEventListener('mousedown', e => {
-      e.preventDefault();
-      hide();
-      onEdit();
-    });
-    dropdown.appendChild(editBtn);
-    allItems.push(editBtn);
-
     positionDropdown(anchor);
     document.body.appendChild(host);
 
-    // Close on outside click or Escape.
     document.addEventListener('mousedown', onOutsideClick, true);
     document.addEventListener('keydown', onKeyDown, true);
-    // Only close on a real user-typed input — some sites (e.g. google.com search)
-    // fire synthetic `input` events on focus, which would close us immediately.
-    onAnchorInput = (e) => { if (e.isTrusted) hide(); };
-    anchor.addEventListener('input', onAnchorInput);
+
+    if (!opts.suppressAutoHideOnInput) {
+      onAnchorInput = (e) => { if (e.isTrusted) hide(); };
+      anchor.addEventListener('input', onAnchorInput);
+    }
   }
 
   function positionDropdown(anchor) {
     const rect = anchor.getBoundingClientRect();
     dropdown.style.top = `${rect.bottom + 4}px`;
     dropdown.style.left = `${rect.left}px`;
-    // Ensure it doesn't overflow viewport bottom.
     requestAnimationFrame(() => {
       const dr = dropdown.getBoundingClientRect();
       if (dr.bottom > window.innerHeight - 8) {

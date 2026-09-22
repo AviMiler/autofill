@@ -15,22 +15,30 @@
       border-bottom: 1px solid #eee;
     }
     header h1 { font-size: 14px; font-weight: 600; }
+    .header-right { display: flex; align-items: center; gap: 8px; }
     .count { font-size: 11px; background: #4f7aff; color: #fff;
       border-radius: 10px; padding: 1px 7px; }
-    #rules-list { padding: 8px 0; max-height: 380px; overflow-y: auto; }
+    #open-manager {
+      font-size: 11px; padding: 3px 10px; border-radius: 5px;
+      border: 1px solid #4f7aff; background: #fff; color: #4f7aff;
+      cursor: pointer; font-family: inherit;
+    }
+    #open-manager:hover { background: #f0f4ff; }
+    .cred-header { font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 8px; }
+    #entries-list { padding: 8px 0; max-height: 300px; overflow-y: auto; }
     .af-group-title {
       font-size: 10px; color: #999; text-transform: uppercase;
       padding: 6px 16px 2px; letter-spacing: .5px;
     }
-    .af-rule-row {
+    .af-entry-row {
       display: flex; align-items: center; gap: 8px;
       padding: 8px 16px; cursor: default;
     }
-    .af-rule-row:hover { background: #f5f5f5; }
-    .af-rule-info { flex: 1; min-width: 0; }
-    .af-rule-label { font-size: 13px; font-weight: 500;
+    .af-entry-row:hover { background: #f5f5f5; }
+    .af-entry-info { flex: 1; min-width: 0; }
+    .af-entry-name { font-size: 13px; font-weight: 500;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .af-rule-meta { font-size: 11px; color: #888; margin-top: 1px;
+    .af-entry-meta { font-size: 11px; color: #888; margin-top: 1px;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .af-toggle {
       position: relative; width: 32px; height: 18px; flex-shrink: 0;
@@ -59,55 +67,60 @@
     .empty {
       padding: 24px 16px; text-align: center; color: #999; font-size: 13px;
     }
-    #cred-section { padding: 12px 16px; }
-    .cred-header { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
-    #cred-status { font-size: 11px; color: #888; margin-bottom: 8px; }
-    .cred-fields { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
-    .cred-fields input {
-      width: 100%; padding: 5px 8px; font-size: 12px;
+    #snippet-section { padding: 10px 16px 12px; border-bottom: 1px solid #eee; }
+    #snippet-list { max-height: 120px; overflow-y: auto; margin-bottom: 8px; }
+    .empty-small { font-size: 11px; color: #999; padding: 4px 0; }
+    .snippet-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 4px 0;
+    }
+    .snippet-info {
+      flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 6px;
+    }
+    .snippet-trigger {
+      font-size: 12px; font-weight: 600; font-family: ui-monospace, monospace;
+      color: #4f7aff; flex-shrink: 0;
+    }
+    .snippet-value {
+      font-size: 12px; color: #888;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .snippet-add-row { display: flex; gap: 5px; }
+    .snippet-add-row input {
+      padding: 5px 8px; font-size: 12px;
       border: 1px solid #ddd; border-radius: 5px; outline: none;
+      font-family: inherit;
     }
-    .cred-fields input:focus { border-color: #4f7aff; }
-    .cred-pw-wrap { position: relative; display: flex; align-items: center; }
-    .cred-pw-wrap input { flex: 1; padding-left: 30px; }
-    #cred-toggle {
-      position: absolute; left: 4px;
-      background: none; border: none; cursor: pointer; font-size: 13px; padding: 0 4px;
+    .snippet-add-row input:focus { border-color: #4f7aff; }
+    #snip-trigger { width: 70px; flex-shrink: 0; }
+    #snip-value { flex: 1; min-width: 0; }
+    #snip-add {
+      padding: 5px 12px; border-radius: 5px; border: 1px solid #4f7aff;
+      background: #4f7aff; color: #fff; cursor: pointer; font-size: 13px;
+      font-family: inherit; flex-shrink: 0;
     }
-    .cred-actions { display: flex; gap: 8px; }
-    .cred-actions button {
-      flex: 1; padding: 5px; font-size: 12px; border-radius: 5px; cursor: pointer;
-      border: 1px solid #ddd; background: #f5f5f5;
-    }
-    #cred-save { background: #4f7aff; color: #fff; border-color: #4f7aff; }
-    #cred-save:hover { background: #3a66e0; }
-    .cred-actions button:not(#cred-save):hover { background: #eee; }
-    #cred-divider { border: none; border-top: 1px solid #eee; margin: 0; }
+    #snip-add:hover { background: #3a66e0; }
   </style>
 </head>
 <body>
   <header>
     <h1>⚡ AutoFill</h1>
-    <span id="total-count" class="count">0</span>
-  </header>
-  <div id="cred-section">
-    <div class="cred-header">🔑 פרטי כניסה שמורים</div>
-    <div id="cred-status">לא מוגדר</div>
-    <div class="cred-fields">
-      <input type="text" id="cred-username" placeholder="שם משתמש / אימייל" dir="ltr" autocomplete="off">
-      <div class="cred-pw-wrap">
-        <input type="password" id="cred-password" placeholder="סיסמה" dir="ltr" autocomplete="off">
-        <button id="cred-toggle" title="הצג/הסתר סיסמה">👁</button>
-      </div>
+    <div class="header-right">
+      <button id="open-manager">🗂 ניהול</button>
+      <span id="total-count" class="count">0</span>
     </div>
-    <div class="cred-actions">
-      <button id="cred-save">שמור</button>
-      <button id="cred-clear">נקה</button>
+  </header>
+  <div id="snippet-section">
+    <div class="cred-header">✂️ קיצורי טקסט</div>
+    <div id="snippet-list"></div>
+    <div class="snippet-add-row">
+      <input type="text" id="snip-trigger" placeholder="קיצור" dir="ltr" autocomplete="off">
+      <input type="text" id="snip-value" placeholder="ערך למילוי" dir="ltr" autocomplete="off">
+      <button id="snip-add">+</button>
     </div>
   </div>
-  <hr id="cred-divider">
-  <div id="rules-list"></div>
-  <footer>לחץ ימני על שדה כדי להוסיף אפשרויות</footer>
+  <div id="entries-list"></div>
+  <footer>לחץ ימני על שדה כדי להוסיף מילוי</footer>
   <script src="popup.js"></script>
 </body>
 </html>

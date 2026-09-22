@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="UTF-8">
+<title>ניהול AutoFill</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #f7f8fa;
+    font-family: system-ui, sans-serif;
+    color: #222;
+  }
+  .af-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 16px 24px; background: #fff;
+    border-bottom: 1px solid #e5e5e5;
+  }
+  .af-title { font-size: 17px; font-weight: 700; color: #111; white-space: nowrap; }
+  .af-search {
+    flex: 1; max-width: 420px; padding: 8px 14px; border: 1px solid #ddd;
+    border-radius: 20px; font-size: 13px; outline: none; direction: rtl;
+    font-family: inherit;
+  }
+  .af-search:focus { border-color: #4f7aff; }
+  .af-toolbar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px 24px; background: #fff;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .af-count { font-size: 12px; color: #888; }
+  .af-add-btn {
+    margin-right: auto; padding: 7px 18px; border: none;
+    border-radius: 6px; background: #4f7aff; color: #fff;
+    font-size: 13px; cursor: pointer; font-family: inherit;
+  }
+  .af-add-btn:hover { background: #3a63e0; }
+  .af-body { padding: 20px 24px 40px; max-width: 900px; margin: 0 auto; }
+  .af-group { margin-bottom: 22px; }
+  .af-group-title {
+    font-size: 11px; font-weight: 700; color: #999;
+    text-transform: uppercase; letter-spacing: .4px;
+    margin-bottom: 8px; display: flex; align-items: baseline; gap: 8px;
+  }
+  .af-group-sel {
+    font-family: ui-monospace, monospace; font-size: 11px;
+    color: #bbb; font-weight: 400;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 380px;
+  }
+  .af-entry {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; background: #fff;
+    border: 1px solid #eee; border-radius: 8px; margin-bottom: 6px;
+  }
+  .af-entry:hover { border-color: #ccc; }
+  .af-entry-info { flex: 1; min-width: 0; }
+  .af-entry-name { font-size: 13px; font-weight: 600; color: #111; }
+  .af-entry-value {
+    font-size: 12px; color: #888; font-family: ui-monospace, monospace;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .af-scope-badge {
+    font-size: 11px; padding: 2px 9px; border-radius: 10px; white-space: nowrap; flex-shrink: 0;
+  }
+  .s-global { background: #e8f4e8; color: #1a7a3c; }
+  .s-domain  { background: #e8eeff; color: #2a4ad0; }
+  .s-url     { background: #fff8e1; color: #a06000; }
+  .af-toggle { position: relative; width: 32px; height: 18px; flex-shrink: 0; }
+  .af-toggle input { opacity: 0; width: 0; height: 0; }
+  .af-slider {
+    position: absolute; inset: 0; background: #ccc;
+    border-radius: 18px; cursor: pointer; transition: .2s;
+  }
+  .af-slider:before {
+    content: ''; position: absolute;
+    height: 13px; width: 13px; right: 2.5px; bottom: 2.5px;
+    background: #fff; border-radius: 50%; transition: .2s;
+  }
+  input:checked + .af-slider { background: #4f7aff; }
+  input:checked + .af-slider:before { transform: translateX(-14px); }
+  .af-row-actions { display: flex; gap: 2px; flex-shrink: 0; }
+  .af-icon-btn {
+    border: none; background: none; cursor: pointer;
+    font-size: 14px; padding: 4px 6px; border-radius: 5px; color: #bbb;
+  }
+  .af-icon-btn:hover { background: #f0f0f0; color: #333; }
+  .af-icon-btn.del:hover { color: #c00; background: #fff0f0; }
+  .af-empty { text-align: center; color: #aaa; font-size: 14px; padding: 60px 0; }
+
+  .af-modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,.5);
+    z-index: 100; display: flex; align-items: center; justify-content: center;
+  }
+  .af-modal {
+    background: #fff; border-radius: 12px;
+    box-shadow: 0 8px 40px rgba(0,0,0,.25);
+    width: 440px; max-width: 95vw; max-height: 90vh;
+    overflow-y: auto; padding: 24px; direction: rtl;
+  }
+  .af-modal h3 { margin: 0 0 18px; font-size: 15px; color: #111; }
+  .af-modal label { display: block; font-size: 12px; color: #555; margin: 14px 0 4px; }
+  .af-modal input[type=text] {
+    width: 100%; box-sizing: border-box; border: 1px solid #ddd;
+    border-radius: 6px; padding: 7px 10px; font-size: 13px; outline: none;
+    font-family: inherit;
+  }
+  .af-modal input[type=text]:focus { border-color: #4f7aff; }
+  .af-modal .af-scope-opts { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; font-size: 13px; }
+  .af-modal .af-scope-opts label { margin: 0; display: flex; align-items: center; gap: 6px; color: #333; }
+  .af-modal .af-url-val { margin: 6px 0 0 24px; width: calc(100% - 24px); }
+  .af-modal .af-url-val[disabled] { background: #f5f5f5; color: #aaa; }
+  .af-modal-actions { display: flex; gap: 8px; margin-top: 22px; }
+  .af-modal-actions button {
+    padding: 8px 18px; border-radius: 6px; border: none;
+    font-size: 13px; cursor: pointer; font-family: inherit;
+  }
+  .btn-save   { background: #4f7aff; color: #fff; flex: 1; }
+  .btn-save:hover { background: #3a63e0; }
+  .btn-cancel { background: #f2f2f2; color: #444; }
+  .btn-cancel:hover { background: #e5e5e5; }
+  .btn-del    { background: #fff0f0; color: #c00; margin-right: auto; }
+  .btn-del:hover { background: #ffd5d5; }
+</style>
+</head>
+<body>
+  <div class="af-header">
+    <div class="af-title">🗂 ניהול מילויים אוטומטיים</div>
+    <input type="text" id="af-search" class="af-search" placeholder="🔍 חיפוש לפי שם, ערך, שדה או URL...">
+  </div>
+  <div class="af-toolbar">
+    <span class="af-count" id="af-count"></span>
+    <button class="af-add-btn" id="af-add-btn">+ הוסף מילוי חדש</button>
+  </div>
+  <div class="af-body" id="af-body"></div>
+  <script src="manager.js"></script>
+</body>
+</html>

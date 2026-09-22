@@ -2,6 +2,10 @@
 // fillField(element, value) → void
 //   Supports: <input>, <textarea>, contenteditable elements.
 //   Dispatches native input/change events so React/Vue/Angular detect the change.
+// replaceTextBeforeCursor(element, matchText, value) → void
+//   Replaces the `matchText` characters immediately before the cursor with `value`.
+//   Used for snippet-shortcut expansion (only the typed shortcut is replaced,
+//   not the whole field).
 
 (() => {
   // Cache native setters so framework-wrapped setters don't intercept.
@@ -37,5 +41,33 @@
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
-  window.__afFill = { fillField };
+  function replaceTextBeforeCursor(el, matchText, value) {
+    if (el.isContentEditable) {
+      replaceContentEditableBeforeCursor(el, matchText, value);
+    } else {
+      replaceInputBeforeCursor(el, matchText, value);
+    }
+  }
+
+  function replaceInputBeforeCursor(el, matchText, value) {
+    const setter = el instanceof HTMLTextAreaElement ? textareaSetter : inputSetter;
+    const cursor = el.selectionStart ?? el.value.length;
+    const start = Math.max(0, cursor - matchText.length);
+    const newValue = el.value.slice(0, start) + value + el.value.slice(cursor);
+    setter.call(el, newValue);
+    const caret = start + value.length;
+    el.setSelectionRange(caret, caret);
+    dispatchEvents(el);
+  }
+
+  function replaceContentEditableBeforeCursor(el, matchText, value) {
+    const sel = window.getSelection();
+    for (let i = 0; i < matchText.length; i++) {
+      sel.modify('extend', 'backward', 'character');
+    }
+    document.execCommand('insertText', false, value);
+    dispatchEvents(el);
+  }
+
+  window.__afFill = { fillField, replaceTextBeforeCursor };
 })();

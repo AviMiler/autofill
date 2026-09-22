@@ -2,11 +2,9 @@
 
 Chrome MV3 extension. No build step — plain JS files loaded directly.
 
-## Status: v1.3 — Entries model + manager tab
-Core autofill (entries model, per-selector/per-URL matching) complete. Text-expansion snippets
-(user-defined trigger strings, e.g. `@TZ`, that suggest a stored value while typing in any field) are supported.
-Management of saved entries happens in a dedicated manager tab (`manager/manager.html`), opened from the popup.
-There is no saved-credential / username-password feature — it was removed.
+## Status: v1.2 — Snippets added
+Core v1.0 complete. v1.1 added global username/password (single credential) for HTTP Basic Auth + login form fields.
+v1.2 adds text-expansion snippets: user-defined trigger strings (e.g. `@TZ`) that suggest a stored value while typing in any field.
 Load as unpacked extension from this directory.
 
 ---
@@ -16,18 +14,18 @@ Load as unpacked extension from this directory.
 | File | Exports | Role |
 |------|---------|------|
 | `manifest.json` | — | MV3 config, permissions, content script load order |
-| `background.js` | — | Service worker: context menu + message routing |
-| `content/storage.js` | `window.__afStorage` | chrome.storage.local wrapper for entries (auto-migrates legacy `af_rules`) |
+| `background.js` | — | Service worker: context menu + message routing + HTTP Basic Auth autofill |
+| `content/storage.js` | `window.__afStorage` | chrome.storage.local wrapper for rules |
 | `content/selector.js` | `window.__afSelector` | Generate stable CSS selectors from DOM elements |
-| `content/fill.js` | `window.__afFill` | Fill input/textarea/contentEditable fields; snippet text replacement |
-| `content/dropdown.js` | `window.__afDropdown` | Shadow DOM suggestion dropdown UI (no action buttons) |
-| `content/config-panel.js` | `window.__afConfig` | Shadow DOM "add new entry" panel, opened via right-click |
+| `content/fill.js` | `window.__afFill` | Fill input/textarea/contentEditable fields |
+| `content/dropdown.js` | `window.__afDropdown` | Shadow DOM dropdown UI |
+| `content/config-panel.js` | `window.__afConfig` | Shadow DOM config panel (add/edit rules) |
+| `content/credential.js` | `window.__afCredential` | Global credential storage + username/password field detection |
 | `content/snippet.js` | `window.__afSnippet` | Snippet cache + trigger-token matching for text-expansion shortcuts |
-| `content/content.js` | `window.__afContent` | Orchestrator: focus/click → match → dropdown; also `input` → snippet-trigger detection → dropdown |
-| `manager/manager.html` + `manager.js` | — | Standalone extension page (opened in a new tab): full CRUD over saved entries |
-| `popup/popup.html` + `popup.js` | — | Extension popup: snippet editor + quick entries list/toggle/delete + "open manager" button |
+| `content/content.js` | `window.__afContent` | Orchestrator: focus/click → match → dropdown; also `input` → snippet-trigger detection → dropdown (also injects credential into dropdown for login fields) |
+| `popup/popup.html` + `popup.js` | — | Extension popup: credential editor + snippet editor + list/toggle/delete rules |
 
-Content scripts load order (critical): `storage → selector → fill → dropdown → config-panel → snippet → content`
+Content scripts load order (critical): `storage → selector → fill → dropdown → config-panel → credential → snippet → content`
 
 ---
 
@@ -87,7 +85,16 @@ hide()                             → void
 
 ### `window.__afContent`
 ```
-refreshEntries()  → void   // reload entries from storage (called after add/edit/delete)
+refreshRules()  → void   // reload rules from storage (called by config-panel after save)
+```
+
+### `window.__afCredential`
+```
+load()                       → Promise<{username, password} | null>
+save(username, password)     → Promise
+clear()                      → Promise
+isUsernameField(el)          → boolean   // checks type/autocomplete/id/name/class/placeholder/label/aria/data-* + Hebrew terms
+isPasswordField(el)          → boolean   // checks type=password + masked-text patterns + Hebrew "סיסמ"
 ```
 
 ### `window.__afSnippet`
@@ -97,6 +104,8 @@ findMatches(token)    → Snippet[] // snippets whose trigger startsWith(token);
 ```
 
 Kill switches:
+- `AF_CREDENTIAL_ENABLED` (top of `content/credential.js`) — disables dropdown credential offers
+- `AF_BASIC_AUTH_ENABLED` (top of `background.js`) — disables HTTP Basic Auth autofill
 - `AF_SNIPPET_ENABLED` (top of `content/snippet.js`) — disables snippet-trigger suggestions
 
 ---
@@ -137,6 +146,13 @@ Each option is `{ name, value }`. `name` is optional — shown in dropdown as `"
 
 Rules matched using native `element.matches(selector)` after URL check passes.
 
+### Credential — key: `af_credential`
+```json
+{ "username": "user@example.com", "password": "secret123" }
+```
+Singular (one global credential, not per-site). Plaintext in `chrome.storage.local`.
+Used by `background.js` for HTTP Basic Auth (via `webRequest.onAuthRequired`) and by `content.js` (via `__afCredential`) to prepend a saved-credential row to the dropdown on username/password fields.
+
 ### Snippets — key: `af_snippets`
 ```json
 [
@@ -148,7 +164,7 @@ Global text-expansion shortcuts (no per-site/per-field targeting). While typing 
 ---
 
 ## Manifest Permissions
-`storage`, `contextMenus`.
+`storage`, `contextMenus`, `webRequest`, `webRequestAuthProvider` — last two enable Basic Auth interception in `background.js`.
 
 ---
 
@@ -185,6 +201,12 @@ window.__afDropdown.show(document.activeElement, ['opt 1','opt 2'], v=>console.l
 // Check config panel
 window.__afConfig.show(document.querySelector('input'), null)
 
+// Check credential
+await window.__afCredential.save('user@example.com', 'secret')
+await window.__afCredential.load()
+window.__afCredential.isPasswordField(document.querySelector('input[type=password]'))
+window.__afCredential.isUsernameField(document.querySelector('input[type=email]'))
+
 // Check snippets
 await window.__afStorage.addSnippet({ trigger: '@TZ', value: '123456789' })
 window.__afSnippet.getToken(document.activeElement)      // token ending at cursor
@@ -196,8 +218,9 @@ window.__afFill.replaceTextBeforeCursor(document.querySelector('input'), '@TZ', 
 
 ## What's NOT supported
 - `<select>`, checkbox, radio fields (different UX needed)
-- Import/export entries
-- Entry reordering
-- Saved credentials / username-password autofill (removed)
+- Import/export rules
+- Rule reordering in popup
+- Multiple credentials per site (only one global credential)
+- Encryption-at-rest for credential (plaintext in `chrome.storage.local`)
 - Snippet triggers with whitespace in them (matching is done on a whitespace-delimited token)
 - Snippet matching across multiple text nodes in `contentEditable` fields (only the current text node is checked)
