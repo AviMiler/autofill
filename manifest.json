@@ -3,7 +3,7 @@
   "name": "AutoFill",
   "version": "1.0.0",
   "description": "מילוי אוטומטי מהיר לכל שדה באינטרנט",
-  "permissions": ["storage", "contextMenus", "webRequest", "webRequestAuthProvider"],
+  "permissions": ["storage", "contextMenus"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js"
@@ -17,7 +17,6 @@
         "content/fill.js",
         "content/dropdown.js",
         "content/config-panel.js",
-        "content/credential.js",
         "content/manager.js",
         "content/content.js"
       ],

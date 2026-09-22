@@ -64,34 +64,6 @@
 
     const matched = matchingEntries(el);
 
-    // Credential fields: prepend saved credential items.
-    if (window.__afCredential) {
-      const isCred = window.__afCredential.isPasswordField(el) || window.__afCredential.isUsernameField(el);
-      if (isCred) {
-        window.__afCredential.load().then(cred => {
-          const credItems = cred
-            ? (window.__afCredential.isPasswordField(el)
-                ? [{ name: 'סיסמה שמורה', value: cred.password }]
-                : [{ name: 'שם משתמש שמור', value: cred.username }])
-            : [];
-          const seen = new Set();
-          const entryItems = matched
-            .filter(e => e.value && !seen.has(e.value) && seen.add(e.value))
-            .map(e => ({ name: e.name, value: e.value }));
-          const merged = [...credItems, ...entryItems];
-          if (merged.length) {
-            window.__afDropdown.show(
-              el, merged,
-              v => window.__afFill.fillField(el, v),
-              () => window.__afConfig.show(el),
-              () => window.__afManager.show({ selector: window.__afSelector.generate(el) })
-            );
-          }
-        });
-        return;
-      }
-    }
-
     const seen = new Set();
     const options = matched
       .filter(e => e.value && !seen.has(e.value) && seen.add(e.value))

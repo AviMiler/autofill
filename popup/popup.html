@@ -66,30 +66,6 @@
     .empty {
       padding: 24px 16px; text-align: center; color: #999; font-size: 13px;
     }
-    #cred-section { padding: 12px 16px; }
-    .cred-header { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
-    #cred-status { font-size: 11px; color: #888; margin-bottom: 8px; }
-    .cred-fields { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
-    .cred-fields input {
-      width: 100%; padding: 5px 8px; font-size: 12px;
-      border: 1px solid #ddd; border-radius: 5px; outline: none;
-    }
-    .cred-fields input:focus { border-color: #4f7aff; }
-    .cred-pw-wrap { position: relative; display: flex; align-items: center; }
-    .cred-pw-wrap input { flex: 1; padding-left: 30px; }
-    #cred-toggle {
-      position: absolute; left: 4px;
-      background: none; border: none; cursor: pointer; font-size: 13px; padding: 0 4px;
-    }
-    .cred-actions { display: flex; gap: 8px; }
-    .cred-actions button {
-      flex: 1; padding: 5px; font-size: 12px; border-radius: 5px; cursor: pointer;
-      border: 1px solid #ddd; background: #f5f5f5;
-    }
-    #cred-save { background: #4f7aff; color: #fff; border-color: #4f7aff; }
-    #cred-save:hover { background: #3a66e0; }
-    .cred-actions button:not(#cred-save):hover { background: #eee; }
-    #cred-divider { border: none; border-top: 1px solid #eee; margin: 0; }
   </style>
 </head>
 <body>
@@ -100,22 +76,6 @@
       <span id="total-count" class="count">0</span>
     </div>
   </header>
-  <div id="cred-section">
-    <div class="cred-header">🔑 פרטי כניסה שמורים</div>
-    <div id="cred-status">לא מוגדר</div>
-    <div class="cred-fields">
-      <input type="text" id="cred-username" placeholder="שם משתמש / אימייל" dir="ltr" autocomplete="off">
-      <div class="cred-pw-wrap">
-        <input type="password" id="cred-password" placeholder="סיסמה" dir="ltr" autocomplete="off">
-        <button id="cred-toggle" title="הצג/הסתר סיסמה">👁</button>
-      </div>
-    </div>
-    <div class="cred-actions">
-      <button id="cred-save">שמור</button>
-      <button id="cred-clear">נקה</button>
-    </div>
-  </div>
-  <hr id="cred-divider">
   <div id="entries-list"></div>
   <footer>לחץ ימני על שדה כדי להוסיף מילוי</footer>
   <script src="popup.js"></script>
