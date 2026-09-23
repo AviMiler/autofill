@@ -22,17 +22,7 @@
       padding: 24px;
       direction: rtl;
     }
-    h2 { margin: 0; font-size: 16px; color: #111; }
-    .af-panel-header {
-      display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 18px; gap: 10px;
-    }
-    .af-manage-link {
-      font-size: 12px; color: #4f7aff; cursor: pointer;
-      background: none; border: none; font-family: inherit;
-      white-space: nowrap; padding: 0;
-    }
-    .af-manage-link:hover { text-decoration: underline; }
+    h2 { margin: 0 0 18px; font-size: 16px; color: #111; }
     label { display: block; font-size: 12px; color: #555; margin-bottom: 4px; margin-top: 14px; }
     input[type=text] {
       width: 100%; box-sizing: border-box;
@@ -99,10 +89,7 @@
     const generatedSel = element ? window.__afSelector.generate(element) : '';
 
     panel.innerHTML = `
-      <div class="af-panel-header">
-        <h2>➕ הוסף מילוי אוטומטי</h2>
-        <button class="af-manage-link" id="af-open-manager">🗂 ניהול מילויים לשדה זה</button>
-      </div>
+      <h2>➕ הוסף מילוי אוטומטי</h2>
 
       <label>שם השדה (לתצוגה בלבד)</label>
       <input type="text" id="af-fieldLabel" placeholder="למשל: אימייל, שם מלא">
@@ -161,12 +148,6 @@
 
     overlay.addEventListener('mousedown', e => { if (e.target === overlay) hide(); });
     panel.querySelector('#af-cancel').addEventListener('click', hide);
-
-    panel.querySelector('#af-open-manager').addEventListener('click', () => {
-      const selector = selInput.value.trim() || generatedSel;
-      hide();
-      window.__afManager.show({ selector });
-    });
 
     panel.querySelector('#af-save').addEventListener('click', async () => {
       const selector = selInput.value.trim();
