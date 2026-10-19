@@ -7,6 +7,7 @@
 //   onSelect receives the value (always a string).
 //   opts.suppressAutoHideOnInput: true → skip auto-hide on input events
 //     (needed by snippet suggestions that re-show() on every keystroke)
+//   opts.onAdd: function → adds a bottom "add new entry" button that calls it
 // hide()                                    → void
 // isVisible()                               → boolean
 // getAnchor()                               → element | null  — currently anchored field
@@ -64,6 +65,19 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    .af-item:has(+ .af-footer) { border-bottom: none; }
+    .af-footer {
+      border-top: 1px solid #e8e8e8;
+    }
+    .af-footer-btn {
+      padding: 8px 10px;
+      cursor: pointer;
+      background: #fafafa;
+      color: #4f7aff;
+      font-size: 12px;
+      text-align: center;
+    }
+    .af-footer-btn:hover { background: #f0f4ff; }
     .af-close {
       position: absolute;
       top: 4px;
@@ -160,6 +174,21 @@
       dropdown.appendChild(item);
       allItems.push(item);
     });
+
+    if (opts.onAdd) {
+      const footer = document.createElement('div');
+      footer.className = 'af-footer';
+      const addBtn = document.createElement('div');
+      addBtn.className = 'af-footer-btn';
+      addBtn.textContent = '➕ הוסף מילוי חדש';
+      addBtn.addEventListener('mousedown', e => {
+        e.preventDefault();
+        hide();
+        opts.onAdd();
+      });
+      footer.appendChild(addBtn);
+      dropdown.appendChild(footer);
+    }
 
     positionDropdown(anchor);
     document.body.appendChild(host);

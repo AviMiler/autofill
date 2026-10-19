@@ -74,7 +74,12 @@
 
     if (!options.length) return;
 
-    window.__afDropdown.show(el, options, value => window.__afFill.fillField(el, value));
+    window.__afDropdown.show(
+      el,
+      options,
+      value => window.__afFill.fillField(el, value),
+      { onAdd: () => window.__afConfig.show(el) }
+    );
   }
 
   function trySnippet(e) {
