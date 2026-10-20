@@ -59,9 +59,16 @@
     });
   }
 
+  // A click inside a rich contentEditable targets a descendant, but focus/blur events (and
+  // document.activeElement) belong to the editing host — anchor the dropdown on the host.
+  function toEditingHost(el) {
+    while (el.isContentEditable && el.parentElement?.isContentEditable) el = el.parentElement;
+    return el;
+  }
+
   function tryShow(e) {
-    const el = e.target;
-    if (!isEditableField(el)) return;
+    if (!isEditableField(e.target)) return;
+    const el = toEditingHost(e.target);
     if (window.__afDropdown.isVisible() && window.__afDropdown.getAnchor() === el) return;
 
     snippetModeActive = false;
@@ -72,7 +79,11 @@
       .filter(e => e.value && !seen.has(e.value) && seen.add(e.value))
       .map(e => ({ name: e.name, value: e.value }));
 
-    if (!options.length) return;
+    if (!options.length) {
+      // Focus moved to a field with nothing to offer: don't leave the old field's dropdown open.
+      if (window.__afDropdown.isVisible() && window.__afDropdown.getAnchor() !== el) window.__afDropdown.hide();
+      return;
+    }
 
     window.__afDropdown.show(
       el,
@@ -82,12 +93,19 @@
     );
   }
 
+  // type=email/number expose no cursor, so getToken assumes it is at the end. A typed
+  // character that did not land at the end of the value proves that assumption wrong.
+  function isEditAwayFromEnd(e, el) {
+    if (el.isContentEditable || el.selectionStart !== null) return false;
+    return e.inputType === 'insertText' && !!e.data && !el.value.endsWith(e.data);
+  }
+
   function trySnippet(e) {
     if (!window.__afSnippet) return;
     const el = e.target;
     if (!isEditableField(el)) return;
 
-    const token = window.__afSnippet.getToken(el);
+    const token = isEditAwayFromEnd(e, el) ? '' : window.__afSnippet.getToken(el);
     const matches = window.__afSnippet.findMatches(token);
 
     if (!matches.length) {
@@ -129,7 +147,7 @@
   }
 
   function refreshEntries() {
-    window.__afStorage.loadEntries().then(e => { entries = e; });
+    window.__afStorage.loadEntries().then(e => { entries = e; }).catch(() => {});
   }
 
   window.__afContent = { refreshEntries };

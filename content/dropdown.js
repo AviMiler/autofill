@@ -8,6 +8,8 @@
 //   opts.suppressAutoHideOnInput: true → skip auto-hide on input events
 //     (needed by snippet suggestions that re-show() on every keystroke)
 //   opts.onAdd: function → adds a bottom "add new entry" button that calls it
+//   Closes itself when the anchor loses focus to anything outside the dropdown, and its
+//   keyboard handler only acts while the anchor is document.activeElement.
 //   While shown, the dropdown follows the anchor (window resize + scroll of any ancestor,
 //   rAF-coalesced), flips above on bottom overflow, is clamped into the viewport
 //   horizontally, and hides itself if the anchor is removed or scrolled out of view.
@@ -112,6 +114,7 @@
   let allItems = [];
   let onAnchorInput = null;
   let rafId = 0;
+  let removalObserver = null;
 
   const ISOLATED_EVENTS = ['mousedown', 'pointerdown', 'mouseup', 'click', 'focusin', 'focusout', 'keydown', 'keyup', 'keypress'];
   function isolateShadow(root) {
@@ -140,6 +143,7 @@
     const closeBtn = document.createElement('button');
     closeBtn.className = 'af-close';
     closeBtn.textContent = '✕';
+    closeBtn.tabIndex = -1; // keep Tab from the field going to the dropdown (it lives at the end of <body>)
     closeBtn.addEventListener('mousedown', e => {
       e.preventDefault();
       hide();
@@ -204,6 +208,14 @@
     window.addEventListener('scroll', scheduleReposition, { capture: true, passive: true });
     window.addEventListener('resize', scheduleReposition, { passive: true });
 
+    // Focus left the anchor for something outside the dropdown (Tab, click elsewhere,
+    // window blur) → close. Dropdown items use mousedown+preventDefault, so interacting
+    // with them never moves focus and never triggers this.
+    anchor.addEventListener('focusout', onAnchorFocusOut);
+    // A removed/re-rendered anchor fires no scroll/resize/blur; watch the DOM instead.
+    removalObserver = new MutationObserver(() => { if (anchorEl && !anchorEl.isConnected) hide(); });
+    removalObserver.observe(document.documentElement, { childList: true, subtree: true });
+
     if (!opts.suppressAutoHideOnInput) {
       onAnchorInput = (e) => { if (e.isTrusted) hide(); };
       anchor.addEventListener('input', onAnchorInput);
@@ -259,20 +271,21 @@
     if (rafId) return;
     rafId = requestAnimationFrame(() => {
       rafId = 0;
-      if (!host) return;
+      if (!host || !anchorEl) return;
       if (!anchorEl.isConnected) { hide(); return; }
       positionDropdown();
     });
   }
 
   function hide() {
+    if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
     if (!host) return;
     document.removeEventListener('mousedown', onOutsideClick, true);
     document.removeEventListener('keydown', onKeyDown, true);
     window.removeEventListener('scroll', scheduleReposition, { capture: true });
     window.removeEventListener('resize', scheduleReposition);
-    if (rafId) cancelAnimationFrame(rafId);
-    rafId = 0;
+    if (removalObserver) { removalObserver.disconnect(); removalObserver = null; }
+    if (anchorEl) anchorEl.removeEventListener('focusout', onAnchorFocusOut);
     if (anchorEl && onAnchorInput) anchorEl.removeEventListener('input', onAnchorInput);
     onAnchorInput = null;
     host.remove();
@@ -292,8 +305,15 @@
     if (host && !host.contains(e.target) && e.target !== anchorEl) hide();
   }
 
+  function onAnchorFocusOut(e) {
+    if (e.relatedTarget && host && host.contains(e.relatedTarget)) return;
+    hide();
+  }
+
   function onKeyDown(e) {
     if (!isVisible()) return;
+    // Keys typed elsewhere must never drive (or fill) a dropdown anchored to another field.
+    if (document.activeElement !== anchorEl) { hide(); return; }
     if (e.key === 'Escape') { hide(); return; }
     if (e.key === 'ArrowDown') {
       e.preventDefault();

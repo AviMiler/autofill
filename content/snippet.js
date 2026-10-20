@@ -1,11 +1,12 @@
 // Text-expansion shortcuts: user types a trigger (e.g. "@TZ") in any field
 // and gets offered the stored value. Exports window.__afSnippet.
 
-// Kill switch: set to false to disable snippet suggestions entirely.
-const AF_SNIPPET_ENABLED = true;
-
 (() => {
-  if (window.__afSnippet) return;
+  if (window.__afSnippet) return; // double injection guard — must stay before anything else
+
+  // Kill switch: set to false to disable snippet suggestions entirely.
+  // (Inside the IIFE so a second injection can't hit a top-level redeclaration SyntaxError.)
+  const AF_SNIPPET_ENABLED = true;
   if (!AF_SNIPPET_ENABLED) return;
 
   const KEY = 'af_snippets';
@@ -21,7 +22,8 @@ const AF_SNIPPET_ENABLED = true;
   });
 
   // Returns the run of non-whitespace characters ending at the cursor
-  // (up to MAX_TOKEN_LEN chars), or '' if none.
+  // (at most MAX_TOKEN_LEN chars), or '' if none or if the run is longer than that —
+  // a run that long is not a trigger, and truncating it would make a selection eat only its tail.
   function getToken(el) {
     let textBeforeCursor;
     if (el.isContentEditable) {
@@ -35,14 +37,14 @@ const AF_SNIPPET_ENABLED = true;
       const cursor = el.selectionStart ?? el.value.length;
       textBeforeCursor = el.value.slice(0, cursor);
     }
-    const tail = textBeforeCursor.slice(-MAX_TOKEN_LEN);
+    const tail = textBeforeCursor.slice(-(MAX_TOKEN_LEN + 1));
     const match = tail.match(/\S+$/);
-    return match ? match[0] : '';
+    return match && match[0].length <= MAX_TOKEN_LEN ? match[0] : '';
   }
 
   function findMatches(token) {
     if (!token || token.length < 2) return [];
-    return _cache.filter(s => s.trigger && s.trigger.startsWith(token));
+    return _cache.filter(s => s.trigger && s.trigger.length <= MAX_TOKEN_LEN && s.trigger.startsWith(token));
   }
 
   window.__afSnippet = { getToken, findMatches };
