@@ -1,51 +1,113 @@
-// Standalone manager page (opened in its own browser tab from the popup).
-// Full CRUD over entries (af_entries). No page-context selector validation —
-// this page runs at chrome-extension://, not on the page the field lives on.
+// Manager page (single place to manage entries, snippets, backup). Opened by the toolbar icon
+// (background.js) in one tab, optionally pre-filtered via the URL hash: #url=<page url>&sel=<css selector>.
+// Related files: dom.js (helpers/toast), entry-editor.js (inline edit), snippets.js, backup.js.
 
 const KEY = 'af_entries';
 
-const { loadEntries, addEntry, updateEntry, deleteEntry } = window.__afStorage;
+const { el, scopeBadge, showToast, buildEditor } = window.__afMgr;
+const { loadEntries, updateEntry, deleteEntry, restoreEntries, appliesToUrl } = window.__afStorage;
 
-let allEntries = [];
-let searchQuery = '';
+const state = {
+  entries: [],
+  search: '',
+  pageUrl: '',      // page the icon was clicked on ('' = none)
+  selector: '',     // exact-selector filter coming from the in-page panel
+  chip: 'all',      // 'all' | 'global' | 'page' | 'domain'
+  domain: '',       // used when chip === 'domain'
+  editingId: null,  // entry being edited inline
+  adding: false,
+};
 
 const bodyEl = document.getElementById('af-body');
 const countEl = document.getElementById('af-count');
-const searchEl = document.getElementById('af-search');
-const addBtn = document.getElementById('af-add-btn');
+const chipsEl = document.getElementById('af-chips');
 
-searchEl.addEventListener('input', () => {
-  searchQuery = searchEl.value;
-  renderList();
-});
+function hostOf(url) {
+  try { return new URL(url).hostname || url; } catch { return url; }
+}
 
-addBtn.addEventListener('click', () => openModal(null));
+function applyHash() {
+  const params = new URLSearchParams(location.hash.slice(1));
+  state.pageUrl = params.get('url') || '';
+  state.selector = params.get('sel') || '';
+  state.chip = state.pageUrl && !state.selector ? 'page' : 'all';
+  state.domain = '';
+  renderAll();
+}
 
-chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && changes[KEY]) {
-    allEntries = changes[KEY].newValue || [];
-    renderList();
-  }
-});
+function passesChip(entry) {
+  if (state.chip === 'global') return (entry.matchType || 'global') === 'global';
+  if (state.chip === 'page') return appliesToUrl(entry, state.pageUrl);
+  if (state.chip === 'domain') return entry.matchType === 'domain' && entry.matchValue === state.domain;
+  return true;
+}
 
-function entryMatchesSearch(e) {
-  if (!searchQuery) return true;
-  const q = searchQuery.toLowerCase();
-  return [e.fieldLabel, e.name, e.value, e.selector, e.matchValue]
+function passesSearch(entry) {
+  if (!state.search) return true;
+  const q = state.search.toLowerCase();
+  return [entry.fieldLabel, entry.name, entry.value, entry.selector, entry.matchValue]
     .some(s => s && s.toLowerCase().includes(q));
+}
+
+function passesAll(entry) {
+  return (!state.selector || entry.selector === state.selector) && passesChip(entry) && passesSearch(entry);
+}
+
+function renderChips() {
+  chipsEl.innerHTML = '';
+  const base = state.entries.filter(e => !state.selector || e.selector === state.selector);
+  const add = (id, text, count) => {
+    const chip = el('button', `af-chip${state.chip === id ? ' active' : ''}`, `${text} (${count})`);
+    chip.addEventListener('click', () => { state.chip = id; renderAll(); });
+    chipsEl.appendChild(chip);
+  };
+  add('all', 'הכל', base.length);
+  add('global', '🌐 גלובלי', base.filter(e => (e.matchType || 'global') === 'global').length);
+  if (state.pageUrl) {
+    add('page', `📍 ${hostOf(state.pageUrl)}`, base.filter(e => appliesToUrl(e, state.pageUrl)).length);
+  }
+
+  const domains = [...new Set(base.filter(e => e.matchType === 'domain').map(e => e.matchValue))].sort();
+  if (domains.length) {
+    const select = el('select', `af-chip${state.chip === 'domain' ? ' active' : ''}`);
+    const placeholder = el('option', '', 'לפי דומיין…');
+    placeholder.value = '';
+    select.appendChild(placeholder);
+    domains.forEach(d => {
+      const opt = el('option', '', d);
+      opt.value = d;
+      select.appendChild(opt);
+    });
+    select.value = state.chip === 'domain' ? state.domain : '';
+    select.addEventListener('change', () => {
+      state.chip = select.value ? 'domain' : 'all';
+      state.domain = select.value;
+      renderAll();
+    });
+    chipsEl.appendChild(select);
+  }
+}
+
+function renderSelectorFilter() {
+  const slot = document.getElementById('af-sel-filter');
+  slot.innerHTML = '';
+  if (!state.selector) return;
+  const pill = el('div', 'af-sel-pill');
+  const clear = el('button', '', '✕');
+  clear.title = 'נקה סינון שדה';
+  clear.addEventListener('click', () => { state.selector = ''; history.replaceState(null, '', location.pathname); renderAll(); });
+  pill.append(el('span', '', 'מסונן לשדה:'), el('code', '', state.selector), clear);
+  slot.appendChild(pill);
 }
 
 function renderList() {
   bodyEl.innerHTML = '';
-  countEl.textContent = `${allEntries.length} מילויים`;
-
-  const filtered = allEntries.filter(entryMatchesSearch);
+  const filtered = state.entries.filter(passesAll);
+  const isFiltered = state.search || state.selector || state.chip !== 'all';
+  countEl.textContent = isFiltered ? `${filtered.length} מתוך ${state.entries.length}` : `${state.entries.length} מילויים`;
 
   if (!filtered.length) {
-    const empty = document.createElement('div');
-    empty.className = 'af-empty';
-    empty.textContent = searchQuery ? 'לא נמצאו תוצאות.' : 'אין מילויים שמורים עדיין.';
-    bodyEl.appendChild(empty);
+    bodyEl.appendChild(el('div', 'af-empty', isFiltered ? 'לא נמצאו מילויים בסינון הזה.' : 'אין מילויים שמורים עדיין.'));
     return;
   }
 
@@ -57,201 +119,97 @@ function renderList() {
   });
 
   groups.forEach(({ label, entries }, key) => {
-    const group = document.createElement('div');
-    group.className = 'af-group';
-
-    const titleEl = document.createElement('div');
-    titleEl.className = 'af-group-title';
-    const labelSpan = document.createElement('span');
-    labelSpan.textContent = label;
-    const selSpan = document.createElement('span');
-    selSpan.className = 'af-group-sel';
-    selSpan.textContent = key;
-    titleEl.appendChild(labelSpan);
-    titleEl.appendChild(selSpan);
-    group.appendChild(titleEl);
-
-    entries.forEach(entry => group.appendChild(buildEntryRow(entry)));
+    const group = el('div', 'af-group');
+    const title = el('div', 'af-group-title');
+    title.append(el('span', '', label), el('span', 'af-group-sel', key));
+    group.appendChild(title);
+    entries.forEach(entry => group.appendChild(
+      entry.id === state.editingId
+        ? buildEditor(entry, { onClose: closeEditors })
+        : buildEntryRow(entry)));
     bodyEl.appendChild(group);
   });
 }
 
-function buildEntryRow(entry) {
-  const row = document.createElement('div');
-  row.className = 'af-entry';
+function renderAll() {
+  renderChips();
+  renderSelectorFilter();
+  renderNewSlot();
+  renderList();
+}
 
-  const toggle = document.createElement('label');
-  toggle.className = 'af-toggle';
-  const cb = document.createElement('input');
+function renderNewSlot() {
+  const slot = document.getElementById('af-new-slot');
+  slot.innerHTML = '';
+  if (!state.adding) return;
+  // Pre-fill the field when the view is narrowed to a single selector.
+  const sample = state.selector ? state.entries.find(e => e.selector === state.selector) : null;
+  const defaults = state.selector ? { selector: state.selector, fieldLabel: sample?.fieldLabel || '' } : {};
+  slot.appendChild(buildEditor(null, { defaults, onClose: closeEditors }));
+}
+
+function closeEditors() {
+  state.editingId = null;
+  state.adding = false;
+  renderAll();
+}
+
+function buildEntryRow(entry) {
+  const row = el('div', `af-entry${entry.enabled === false ? ' off' : ''}`);
+
+  const toggle = el('label', 'af-toggle');
+  const cb = el('input');
   cb.type = 'checkbox';
   cb.checked = entry.enabled !== false;
   cb.addEventListener('change', async () => {
+    row.classList.toggle('off', !cb.checked);
     await updateEntry({ id: entry.id, enabled: cb.checked });
   });
-  const slider = document.createElement('span');
-  slider.className = 'af-slider';
-  toggle.appendChild(cb);
-  toggle.appendChild(slider);
+  toggle.append(cb, el('span', 'af-slider'));
 
-  const info = document.createElement('div');
-  info.className = 'af-entry-info';
-  const nameEl = document.createElement('div');
-  nameEl.className = 'af-entry-name';
-  nameEl.textContent = entry.name || entry.value;
-  info.appendChild(nameEl);
-  if (entry.name) {
-    const valEl = document.createElement('div');
-    valEl.className = 'af-entry-value';
-    valEl.textContent = entry.value;
-    info.appendChild(valEl);
-  }
+  const info = el('div', 'af-entry-info');
+  info.appendChild(el('div', 'af-entry-name', entry.name || entry.value));
+  if (entry.name) info.appendChild(el('div', 'af-entry-value', entry.value));
 
-  const badge = document.createElement('span');
-  badge.className = 'af-scope-badge';
-  const mt = entry.matchType || 'global';
-  if (mt === 'global') { badge.className += ' s-global'; badge.textContent = '🌐 גלובלי'; }
-  else if (mt === 'domain') { badge.className += ' s-domain'; badge.textContent = `🌍 ${entry.matchValue}`; }
-  else { badge.className += ' s-url'; badge.textContent = `🔗 ${entry.matchValue}`; }
-
-  const actions = document.createElement('div');
-  actions.className = 'af-row-actions';
-
-  const editBtn = document.createElement('button');
-  editBtn.className = 'af-icon-btn';
-  editBtn.textContent = '✏️';
+  const editBtn = el('button', 'af-icon-btn', '✏️');
   editBtn.title = 'ערוך';
-  editBtn.addEventListener('click', () => openModal(entry));
+  editBtn.addEventListener('click', () => { state.editingId = entry.id; state.adding = false; renderAll(); });
 
-  const delBtn = document.createElement('button');
-  delBtn.className = 'af-icon-btn del';
+  const delBtn = el('button', 'af-icon-btn del', '🗑');
   delBtn.title = 'מחק';
-  delBtn.textContent = '🗑';
   delBtn.addEventListener('click', async () => {
-    if (!confirm('למחוק מילוי זה?')) return;
     await deleteEntry(entry.id);
+    showToast('המילוי נמחק', () => restoreEntries([entry]));
   });
 
-  actions.appendChild(editBtn);
-  actions.appendChild(delBtn);
-
-  row.appendChild(toggle);
-  row.appendChild(info);
-  row.appendChild(badge);
-  row.appendChild(actions);
+  const actions = el('div', 'af-row-actions');
+  actions.append(editBtn, delBtn);
+  row.append(toggle, info, scopeBadge(entry), actions);
   return row;
 }
 
-function openModal(entry) {
-  document.querySelector('.af-modal-backdrop')?.remove();
-
-  const isNew = !entry;
-  const curMatchType = entry?.matchType || 'global';
-  const curMatchValue = entry?.matchValue || '';
-
-  const backdrop = document.createElement('div');
-  backdrop.className = 'af-modal-backdrop';
-
-  const modal = document.createElement('div');
-  modal.className = 'af-modal';
-
-  modal.innerHTML = `
-    <h3>${isNew ? '➕ הוסף מילוי חדש' : '✏️ ערוך מילוי'}</h3>
-
-    <label>שם השדה (לתצוגה)</label>
-    <input type="text" id="af-fieldLabel" value="${escHtml(entry?.fieldLabel || '')}" placeholder="למשל: אימייל, שם מלא">
-
-    <label>CSS Selector</label>
-    <input type="text" id="af-selector" value="${escHtml(entry?.selector || '')}" placeholder="למשל: input[name='email']">
-
-    <label>שם האפשרות (אופציונלי)</label>
-    <input type="text" id="af-name" value="${escHtml(entry?.name || '')}" placeholder="למשל: אישי, עבודה">
-
-    <label>ערך למילוי</label>
-    <input type="text" id="af-value" value="${escHtml(entry?.value || '')}" placeholder="הערך שימולא בשדה...">
-
-    <label>הופעל כאשר</label>
-    <div class="af-scope-opts">
-      <label><input type="radio" name="af-scope" value="global" ${curMatchType === 'global' ? 'checked' : ''}> כל האתרים</label>
-      <label><input type="radio" name="af-scope" value="domain" ${curMatchType === 'domain' ? 'checked' : ''}> דומיין מסוים</label>
-      <label><input type="radio" name="af-scope" value="url-contains" ${curMatchType === 'url-contains' ? 'checked' : ''}> ה-URL מכיל:</label>
-      <input type="text" id="af-url-val" class="af-url-val"
-        value="${escHtml(curMatchType !== 'global' ? curMatchValue : '')}"
-        placeholder="${curMatchType === 'domain' ? 'למשל: example.com' : 'למשל: /admin/ או ?lang=he'}">
-    </div>
-
-    <div class="af-modal-actions">
-      ${!isNew ? '<button class="btn-del" id="af-del">מחק</button>' : ''}
-      <button class="btn-cancel" id="af-cancel">בטל</button>
-      <button class="btn-save" id="af-save">שמור</button>
-    </div>
-  `;
-
-  const urlInput = modal.querySelector('#af-url-val');
-  const syncUrl = () => {
-    const checked = modal.querySelector('input[name="af-scope"]:checked')?.value;
-    urlInput.disabled = checked === 'global';
-    urlInput.placeholder = checked === 'domain' ? 'למשל: example.com' : 'למשל: /admin/ או ?lang=he';
-  };
-  modal.querySelectorAll('input[name="af-scope"]').forEach(r => r.addEventListener('change', syncUrl));
-  syncUrl();
-
-  backdrop.addEventListener('mousedown', e => { if (e.target === backdrop) backdrop.remove(); });
-  modal.querySelector('#af-cancel').addEventListener('click', () => backdrop.remove());
-
-  modal.querySelector('#af-del')?.addEventListener('click', async () => {
-    if (!confirm('למחוק?')) return;
-    await deleteEntry(entry.id);
-    backdrop.remove();
-  });
-
-  modal.querySelector('#af-save').addEventListener('click', async () => {
-    const selector = modal.querySelector('#af-selector').value.trim();
-    const value = modal.querySelector('#af-value').value.trim();
-    if (!selector || !value) return;
-
-    const matchType = modal.querySelector('input[name="af-scope"]:checked')?.value || 'global';
-    let matchValue = '';
-    if (matchType !== 'global') {
-      matchValue = urlInput.value.trim();
-      if (!matchValue) return;
-    }
-
-    // Form fields only: never echo the render-time snapshot, or enabled/created changed elsewhere get reverted.
-    const data = {
-      selector,
-      fieldLabel: modal.querySelector('#af-fieldLabel').value.trim(),
-      name: modal.querySelector('#af-name').value.trim(),
-      value,
-      matchType,
-      matchValue,
-    };
-
-    if (isNew) {
-      await addEntry(data);
-    } else if ((await loadEntries()).some(e => e.id === entry.id)) {
-      await updateEntry({ id: entry.id, ...data });
-    }
-    // else: entry was deleted elsewhere meanwhile — updateEntry would be a no-op, so just close.
-
-    backdrop.remove();
-  });
-
-  backdrop.appendChild(modal);
-  document.body.appendChild(backdrop);
-  modal.querySelector('#af-fieldLabel').focus();
-}
-
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') document.querySelector('.af-modal-backdrop')?.remove();
+document.getElementById('af-search').addEventListener('input', e => {
+  state.search = e.target.value;
+  renderList();
 });
 
-function escHtml(str) {
-  return String(str || '').replace(/[&<>"']/g, c =>
-    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
-  );
-}
+document.getElementById('af-add-btn').addEventListener('click', () => {
+  state.adding = true;
+  state.editingId = null;
+  renderAll();
+});
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local' || !changes[KEY]) return;
+  state.entries = changes[KEY].newValue || [];
+  // Don't rebuild the page under an open editor: it would wipe what the user is typing.
+  if (state.editingId || state.adding) return;
+  renderAll();
+});
+
+window.addEventListener('hashchange', applyHash);
 
 (async () => {
-  allEntries = await loadEntries();
-  renderList();
+  state.entries = await loadEntries();
+  applyHash();
 })();

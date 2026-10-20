@@ -1,5 +1,5 @@
 # Architecture
-_Last updated: 2026-10-20_
+_Last updated: 2026-10-20 (v1.4.0)_
 
 See [AGENT_CONTEXT.md](AGENT_CONTEXT.md) for project status and [PROJECT_MAP.md](PROJECT_MAP.md) for file layout.
 
@@ -17,7 +17,7 @@ No build step, no framework, no dependencies. All content modules are IIFEs hang
 |---------|---------|--------------|-------------|
 | Background (service worker — [background.js](background.js)) | ❌ | ✅ full | → content scripts via `chrome.tabs.sendMessage` |
 | Content scripts ([content/*.js](content/)) | ✅ (host page) | ✅ limited | ← background, reads/writes `chrome.storage.local` |
-| Popup ([popup/popup.js](popup/popup.js)) and manager ([manager/manager.js](manager/manager.js)) | ✅ (own page) | ✅ limited | load [content/storage.js](content/storage.js) and use `__afStorage` |
+| Manager page ([manager/manager.html](manager/manager.html) + scripts in [manager/](manager/)) | ✅ (own page) | ✅ limited | loads [content/storage.js](content/storage.js) and uses `__afStorage`; reads its filter from the URL hash |
 
 ### Message Flow
 
@@ -28,7 +28,13 @@ No build step, no framework, no dependencies. All content modules are IIFEs hang
 4. [content/content.js](content/content.js)'s `onMessage` handler finds the last right-clicked editable element via `findEditableTarget` (walks up DOM)
 5. [content/config-panel.js](content/config-panel.js) renders the Shadow-DOM panel (same panel opens from the dropdown's "➕ הוסף מילוי חדש" button)
 6. On save, [content/storage.js](content/storage.js) writes to `chrome.storage.local['af_entries']`
-7. `chrome.storage.onChanged` fires → [content/storage.js](content/storage.js) cache, [content/content.js](content/content.js), the popup and the manager all refresh
+7. `chrome.storage.onChanged` fires → [content/storage.js](content/storage.js) cache, [content/content.js](content/content.js) and the manager all refresh
+
+**Open-manager flow (no popup):**
+1. Toolbar icon click → `chrome.action.onClicked` in [background.js](background.js) (`activeTab` makes the clicked tab's URL readable). Alternatively the panel's "ניהול מלא ←" button sends runtime message `{action:'open-manager', selector}`.
+2. `openManager()` builds `manager.html#url=<page url>&sel=<selector>` (both optional; `url` only for http/https/file; for the message, `sender.url` is used only when `frameId === 0`).
+3. If a manager tab exists (`chrome.tabs.query` on the extension's own URL) it is updated to the new hash and focused (`tabs.update` + `windows.update`); otherwise a new tab is created.
+4. The manager applies the hash on load and on `hashchange`: current hostname + global entries, and/or a selector-filter pill.
 
 **Field-fill flow:**
 1. User focuses/clicks editable field → capture-phase listener in [content/content.js](content/content.js) fires
@@ -50,13 +56,16 @@ No build step, no framework, no dependencies. All content modules are IIFEs hang
 | Capture-phase event listeners | Beats site-level handlers that call `stopPropagation` (e.g. SAP UI5) |
 | Flat entries (one value per entry) instead of rules with `options[]` | Simpler CRUD in the manager; per-value scope and enable toggle. Legacy `af_rules` is migrated on first load |
 | Dedicated manager tab (not an overlay) | Works on any page and never overlays or conflicts with the host page |
+| No toolbar popup; the manager is the single management surface | One place for entries and snippets instead of duplicated UIs; icon click opens/focuses the manager (see [DECISIONS.md](DECISIONS.md)) |
+| `activeTab` permission | Lets the icon click read the active tab's URL for the manager's site pre-filter without `tabs` or host permissions |
+| JSON export/import (`{app,version,exportedAt,entries,snippets}`) | User backup/migration; merge-by-id so import never overwrites existing records |
 | Credentials / Basic Auth removed | Out of scope for the product; dropped in v1.3 along with `webRequest` permissions |
 | Kill switch as top-of-file constant | `AF_SNIPPET_ENABLED` in [content/snippet.js](content/snippet.js) disables snippets without removing code (inside the IIFE, after the double-injection guard) |
 | No `host_permissions` | `content_scripts.matches` already injects everywhere and nothing fetches cross-origin; fewer permissions and a smaller install warning |
 
 ## Patterns
 - **`window.__af*` IIFE module**: every content module wraps an `(() => { ... })()` with idempotent guard `if (window.__afXLoaded) return;` (or similar), assigns its API to a `window.__af*` global. See any file under [content/](content/).
-- **`chrome.storage.onChanged` for cache sync**: modules that cache storage values ([content/storage.js](content/storage.js), [content/content.js](content/content.js), [content/snippet.js](content/snippet.js)) re-read on change events to stay current across tabs and popup/manager edits.
+- **`chrome.storage.onChanged` for cache sync**: modules that cache storage values ([content/storage.js](content/storage.js), [content/content.js](content/content.js), [content/snippet.js](content/snippet.js)) re-read on change events to stay current across tabs and manager edits.
 - **`findEditableTarget` walk-up**: right-click targets can be overlays on top of inputs. [content/content.js](content/content.js) walks up `parentElement` until it finds an editable ancestor.
 - **Shadow-DOM event isolation**: dropdown and panel stop propagation of mouse/key/focus events at their root so host-page handlers don't react to interactions inside them; the panel also marks page siblings `inert` and traps focus.
 

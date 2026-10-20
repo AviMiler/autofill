@@ -2,10 +2,11 @@
 
 Chrome MV3 extension. No build step — plain JS files loaded directly.
 
-## Status: v1.3.3 — Entries model + manager tab
+## Status: v1.4.0 — Manager as the single management surface
 Core autofill (entries model, per-selector/per-URL matching) complete. Text-expansion snippets
 (user-defined trigger strings, e.g. `@TZ`, that suggest a stored value while typing in any field) are supported.
-Management of saved entries happens in a dedicated manager tab (`manager/manager.html`), opened from the popup.
+There is no toolbar popup. Clicking the toolbar icon opens (or focuses) the manager tab (`manager/manager.html`), which manages
+both entries and snippets. From a normal web page it opens pre-filtered to that page's site.
 There is no saved-credential / username-password feature and no HTTP Basic Auth handling — both were removed.
 Load as unpacked extension from this directory.
 
@@ -16,7 +17,7 @@ Load as unpacked extension from this directory.
 | File | Exports | Role |
 |------|---------|------|
 | `manifest.json` | — | MV3 config, permissions, content script load order |
-| `background.js` | — | Service worker: context menu → sends `open-config` to the content script |
+| `background.js` | — | Service worker: context menu → sends `open-config` to the content script; `chrome.action.onClicked` and the `open-manager` runtime message → `openManager()` (focus existing manager tab or open one) |
 | `content/storage.js` | `window.__afStorage` | chrome.storage.local wrapper for entries (auto-migrates legacy `af_rules`) |
 | `content/selector.js` | `window.__afSelector` | Generate stable CSS selectors from DOM elements |
 | `content/fill.js` | `window.__afFill` | Fill input/textarea/contentEditable fields; snippet text replacement |
@@ -24,14 +25,13 @@ Load as unpacked extension from this directory.
 | `content/config-panel.js` | `window.__afConfig` | Shadow DOM "add new entry" panel (opened via right-click or dropdown footer) + per-field saved-entries sub-list |
 | `content/snippet.js` | `window.__afSnippet` | Snippet cache + trigger-token matching for text-expansion shortcuts |
 | `content/content.js` | `window.__afContent` | Orchestrator: focus/click → match → dropdown; also `input` → snippet-trigger detection → dropdown |
-| `manager/manager.html` + `manager.js` | — | Standalone extension page (opened in a new tab): full CRUD over saved entries |
-| `popup/popup.html` + `popup.js` | — | Extension popup: snippet editor + quick entries list/toggle/delete + "open manager" button |
+| `manager/manager.html` + `manager.css` + `dom.js` + `entry-editor.js` + `snippets.js` + `backup.js` + `manager.js` | — | Standalone extension page (a tab): the only management UI. `manager.js` = state, filter chips, list, undo toast; `entry-editor.js` = inline row editor; `snippets.js` = collapsible snippet section at the top; `backup.js` = JSON export/import; `dom.js` = shared `window.__afMgr` helpers (`el`, `scopeBadge`, `showToast`) |
 
 Content scripts load order (critical): `storage → selector → fill → dropdown → config-panel → snippet → content`
 
-Note: `popup.js` and `manager.js` are extension pages, not content scripts — they load `content/storage.js`
-via a `<script>` tag and use `__afStorage` for entries. Snippets are read/written by `popup.js` and `snippet.js`
-directly (there is no snippet CRUD in `__afStorage`).
+Note: the manager scripts are extension-page scripts, not content scripts — they load `content/storage.js`
+via a `<script>` tag and use `__afStorage` for entries. Snippets are read/written by `manager/snippets.js` (`loadSnippets`/`saveSnippets`),
+`manager/backup.js` (import) and read by `snippet.js` directly (there is no snippet CRUD in `__afStorage`).
 
 ---
 
@@ -44,6 +44,8 @@ saveEntries(entries)   → Promise
 addEntry(entry)        → Promise<Entry>     // auto-generates id + created; defaults matchType 'global', enabled true
 updateEntry(entry)     → Promise            // merges by id
 deleteEntry(id)        → Promise
+restoreEntries(entries) → Promise           // re-adds full entries keeping id/created; skips ids already present. Used for delete-undo and import
+appliesToUrl(entry, url) → boolean          // URL-match check by matchType; content.js#urlMatchesEntry delegates to it
 ```
 The cache is kept in sync via `chrome.storage.onChanged`. `addEntry`/`updateEntry`/`deleteEntry` bypass the cache
 (re-read storage) and are serialized through an internal queue, so overlapping mutations in one context don't
@@ -101,7 +103,10 @@ show(element) → void   // opens the "add new entry" panel for element (selecto
 hide()        → void
 ```
 The panel also has a "show all saved entries for this field" button that opens a sub-list
-(toggle / inline edit / delete) filtered by the selector currently in the selector input.
+(toggle / inline edit / delete) filtered by the selector currently in the selector input. Each row shows its scope
+(🌐 global / 🌍 domain / 🔗 url) and entries that don't apply to the current page are dimmed. Inline edit sends only
+`{id, ...changed fields}` to `updateEntry` (no whole-entry echo). A "ניהול מלא ←" button sends the runtime message
+`{action:'open-manager', selector}`, which makes the background open the manager filtered to that selector.
 
 ### `window.__afContent`
 ```
@@ -140,7 +145,7 @@ One entry = one selectable value for one field. Several entries sharing a `selec
   }
 ]
 ```
-- `fieldLabel` — display only (group title in popup/manager). `name` — optional; shown as the bold first line in the dropdown. Filling always uses `value`.
+- `fieldLabel` — display only (group title in the manager). `name` — optional; shown as the bold first line in the dropdown. Filling always uses `value`.
 
 ### URL matching modes
 - `matchType: "global"` → matches every page (matchValue ignored)
@@ -160,12 +165,12 @@ flattened into one entry per option (string options become `{ name: '', value }`
   { "id": "s_1716xxx_abc", "trigger": "@TZ", "value": "123456789", "created": 1716000000 }
 ]
 ```
-Global text-expansion shortcuts (no per-site/per-field targeting). Managed only from the popup. While typing in any editable field, `content.js#trySnippet` (bound to a capture-phase `input` listener) reads the token ending at the cursor via `__afSnippet.getToken`, finds triggers that start with it via `__afSnippet.findMatches` (case-sensitive), and shows the dropdown (live-updating per keystroke via `opts.suppressAutoHideOnInput`). Selecting an item calls `__afFill.replaceTextBeforeCursor(el, token, value)`, replacing only the typed token — not the whole field.
+Global text-expansion shortcuts (no per-site/per-field targeting). Managed only from the manager's collapsible snippet section (open/closed state persisted in `chrome.storage.local` key `af_ui_snippets_open`). While typing in any editable field, `content.js#trySnippet` (bound to a capture-phase `input` listener) reads the token ending at the cursor via `__afSnippet.getToken`, finds triggers that start with it via `__afSnippet.findMatches` (case-sensitive), and shows the dropdown (live-updating per keystroke via `opts.suppressAutoHideOnInput`). Selecting an item calls `__afFill.replaceTextBeforeCursor(el, token, value)`, replacing only the typed token — not the whole field.
 
 ---
 
 ## Manifest Permissions
-`storage`, `contextMenus`. There is no `host_permissions`: content-script injection is granted by `content_scripts.matches: ["<all_urls>"]` (with `all_frames: true`), and the background uses `chrome.tabs.sendMessage`, which needs no host access. After adding or removing permissions, reload the unpacked extension.
+`storage`, `contextMenus`, `activeTab` (lets the toolbar-icon click read the active tab's URL for the manager pre-filter). There is no `host_permissions` and no `tabs` permission: content-script injection is granted by `content_scripts.matches: ["<all_urls>"]` (with `all_frames: true`), and the background uses `chrome.tabs.sendMessage`, which needs no host access. Finding the existing manager tab via `chrome.tabs.query` on the extension's own URL without the `tabs` permission is not verified in a real Chrome. After adding or removing permissions, reload the unpacked extension.
 
 ---
 
@@ -173,14 +178,18 @@ Global text-expansion shortcuts (no per-site/per-field targeting). Managed only 
 
 1. **Configure**: right-click any text field → "⚡ AutoFill: הגדר אפשרויות לשדה זה" → config panel opens (or use the "➕ הוסף מילוי חדש" button in an open dropdown)
 2. **Use**: focus OR click a configured field → dropdown appears → click option → field filled
-3. **Manage**: open the extension popup → "open manager" → full CRUD in a dedicated tab. Editing sends only `{id}` + the form fields (selector, fieldLabel, name, value, matchType, matchValue) to `updateEntry`, so `enabled`/`created` changed elsewhere are never overwritten; if the entry was deleted elsewhere meanwhile, the edit modal just closes (nothing is re-created).
+3. **Manage**: click the toolbar icon → the manager tab opens (or the existing one is focused). From a normal page (http/https/file) it opens pre-filtered to that site (current hostname + global entries). Other ways in: the panel's "ניהול מלא ←" button (filtered to that selector). Manager features: filter chips (all / global / current site / by-domain select) and a selector-filter pill; inline row editing (no modal); delete with an undo toast (no `confirm()`); JSON export/import; collapsible snippet editor at the top. Editing sends only `{id}` + the form fields (selector, fieldLabel, name, value, matchType, matchValue) to `updateEntry`, so `enabled`/`created` changed elsewhere are never overwritten; if the entry was deleted elsewhere meanwhile, the inline editor just closes (nothing is re-created).
+
+**Manager URL hash contract** (set by `background.js#openManager`; the manager reads it on load and on `hashchange`, so re-clicking the icon on another site re-filters an already-open manager tab): `manager.html#url=<page url>&sel=<css selector>`. Both parts are optional; `url` is only passed for http/https/file pages. For the `open-manager` message the background uses `sender.url` only when `sender.frameId === 0` (`sender.tab.url` is hidden without the `tabs` permission).
+
+**Backup format** (`backup.js`): `{ "app":"autofill", "version":1, "exportedAt":<ms>, "entries":[...], "snippets":[...] }`. Import merges by id (existing ids are skipped, via `restoreEntries` for entries) and sanitizes records.
 
 When focus moves to a field with no entries, `tryShow` hides the previous dropdown.
 
 Trigger: `content.js` binds `tryShow` to both `focus` and `click` events (capture phase).
 The visibility-check (`isVisible() && getAnchor() === el`) prevents flicker on first click.
 
-**Snippets**: type a saved trigger (e.g. `@TZ`) in any field (managed via the popup) → dropdown appears live as you type → click the suggestion → only the typed trigger is replaced with the value. Bound to a capture-phase `input` listener (`trySnippet` in `content.js`), separate from the focus/click flow above.
+**Snippets**: type a saved trigger (e.g. `@TZ`) in any field (managed in the manager's snippet section) → dropdown appears live as you type → click the suggestion → only the typed trigger is replaced with the value. Bound to a capture-phase `input` listener (`trySnippet` in `content.js`), separate from the focus/click flow above.
 
 ---
 
@@ -215,8 +224,8 @@ window.__afFill.replaceTextBeforeCursor(document.querySelector('input'), '@TZ', 
 
 ## What's NOT supported
 - `<select>`, checkbox, radio fields (different UX needed)
-- Import/export entries
 - Entry reordering
+- Duplicate-entry and bulk select in the manager (deliberately not built)
 - Saved credentials / username-password autofill / HTTP Basic Auth (removed)
 - Selectors for pages whose fields have no stable attribute: ids that look auto-generated (React `:r1:` / `«r1»` / `_r_…` including when embedded in a longer id, 4+ digit runs, UUID/hex hashes, `ember123`, `ng-`/`mat-`/`mui-`/`radix-`/`headlessui-`/`react-select-`/`cdk-`/`ui-id-`/`mantine-` prefixes) are skipped; the selector falls back to name → placeholder → aria-label → type (only when the `type` attribute is present) → a guaranteed-unique `nth-of-type` path anchored at the nearest unique stable-id ancestor (or `<html>`). That fallback can still break if the page layout changes. Counter-style ids of 1–3 digits (`input25`, `field_465`) can't be told apart from stable ids and are accepted as stable
 - Fields inside a page's own Shadow DOM (selectors don't pierce shadow roots)

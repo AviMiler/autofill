@@ -2,6 +2,15 @@
 
 See [AGENT_CONTEXT.md](AGENT_CONTEXT.md) for current state and [ARCHITECTURE.md](ARCHITECTURE.md) for design.
 
+## v1.4.0 — 2026-10-20
+- **Removed:** toolbar popup (`popup/`, `action.default_popup`). The toolbar icon now opens the manager tab, or focuses/re-filters the existing one. Why: one management surface instead of two overlapping UIs.
+- **Added:** manager pre-filter to the clicked page's site (hash `#url=…&sel=…`); `activeTab` permission (reload the unpacked extension).
+- **Changed:** manager split into `manager/{manager.css,dom.js,entry-editor.js,snippets.js,backup.js,manager.js}`; snippet editor moved there as a collapsible top section; filter chips (all/global/current site/by domain); inline row editing replaces the modal; delete uses an undo toast instead of `confirm()`.
+- **Added:** JSON export/import of entries + snippets (previously unsupported); `__afStorage.restoreEntries` / `appliesToUrl`.
+- **Changed:** in-page panel saved-entries sub-list shows scope (🌐/🌍/🔗), dims entries not applying to the current page, and sends only `{id, changed fields}` to `updateEntry`; new "ניהול מלא ←" button opens the manager filtered to the selector.
+- **Not built (by decision):** duplicate-entry, bulk select.
+- **Known/unverified:** `tabs.query` on the extension's own URL without the `tabs` permission has not been verified in a real Chrome.
+
 ## v1.3.3 — 2026-10-20
 - Release bump (`manifest.json` 1.3.2 → 1.3.3) covering all 2026-10-20 entries below: docs sync, storage race, email snippets, stable selectors, dropdown follows anchor, fixes round 2. Reload the unpacked extension (permissions changed).
 

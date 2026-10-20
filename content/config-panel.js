@@ -75,6 +75,12 @@
     .af-row input[type=text] { margin-bottom: 4px; }
     .af-icon { border: none; background: none; cursor: pointer; font-size: 14px; padding: 4px 6px; border-radius: 5px; color: #999; }
     .af-icon:hover { background: #f0f0f0; color: #222; }
+    .af-row.off-page { opacity: .5; }
+    .af-row-scope { font-size: 11px; color: #666; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .af-row-scope.here { color: #1a7a3c; }
+    .af-sub-actions { display: flex; gap: 8px; margin-top: 12px; align-items: center; }
+    .af-sub-link { margin-right: auto; background: none; border: none; color: #4f7aff; cursor: pointer; font-size: 13px; font-family: inherit; }
+    .af-sub-link:hover { text-decoration: underline; }
     .af-empty { text-align: center; color: #aaa; font-size: 13px; padding: 24px 0; }
   `;
 
@@ -253,12 +259,20 @@
 
       list.forEach(entry => box.appendChild(buildRow(entry, render)));
 
+      const footer = document.createElement('div');
+      footer.className = 'af-sub-actions';
       const close = document.createElement('button');
       close.className = 'af-btn af-btn-cancel';
-      close.style.marginTop = '12px';
       close.textContent = 'סגור';
       close.addEventListener('click', () => sub.remove());
-      box.appendChild(close);
+      const full = document.createElement('button');
+      full.className = 'af-sub-link';
+      full.textContent = 'ניהול מלא ←';
+      full.addEventListener('click', () => {
+        chrome.runtime.sendMessage({ action: 'open-manager', selector });
+      });
+      footer.append(close, full);
+      box.appendChild(footer);
     }
 
     overlay.appendChild(sub);
@@ -267,14 +281,16 @@
 
   function buildRow(entry, rerender) {
     const row = document.createElement('div');
-    row.className = 'af-row';
+    const appliesHere = window.__afStorage.appliesToUrl(entry, location.href);
+    row.className = appliesHere ? 'af-row' : 'af-row off-page';
+    row.title = appliesHere ? '' : 'לא חל על הדף הנוכחי';
 
     const cb = document.createElement('input');
     cb.type = 'checkbox';
     cb.checked = entry.enabled !== false;
     cb.title = 'פעיל';
     cb.addEventListener('change', async () => {
-      await window.__afStorage.updateEntry({ ...entry, enabled: cb.checked });
+      await window.__afStorage.updateEntry({ id: entry.id, enabled: cb.checked });
       window.__afContent?.refreshEntries();
     });
 
@@ -290,6 +306,10 @@
       v.textContent = entry.value;
       info.appendChild(v);
     }
+    const scope = document.createElement('div');
+    scope.className = `af-row-scope${appliesHere ? ' here' : ''}`;
+    scope.textContent = scopeText(entry);
+    info.appendChild(scope);
 
     const edit = document.createElement('button');
     edit.className = 'af-icon';
@@ -316,7 +336,7 @@
       }
       const value = valIn.value.trim();
       if (!value) { valIn.focus(); return; }
-      await window.__afStorage.updateEntry({ ...entry, name: nameIn.value.trim(), value });
+      await window.__afStorage.updateEntry({ id: entry.id, name: nameIn.value.trim(), value });
       window.__afContent?.refreshEntries();
       rerender();
     });
@@ -334,6 +354,13 @@
 
     row.append(cb, info, edit, del);
     return row;
+  }
+
+  function scopeText(entry) {
+    const type = entry.matchType || 'global';
+    if (type === 'global') return '🌐 כל האתרים';
+    if (type === 'domain') return `🌍 ${entry.matchValue}`;
+    return `🔗 URL מכיל: ${entry.matchValue}`;
   }
 
   function updateBadge(selector, badge) {

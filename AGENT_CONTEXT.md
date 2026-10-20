@@ -1,17 +1,18 @@
 # Agent Context
-_Last updated: 2026-10-20 — fixes round 2 (selectors, dropdown focus, manager edit safety, no host_permissions); v1.3.3: entries model, manager tab, snippets; credentials removed_
+_Last updated: 2026-10-20 — v1.4.0: popup removed, manager is the single management surface (snippets, filters, inline edit, undo, JSON import/export); entries model, snippets; credentials removed_
 
 ## What This Project Is
-**AutoFill** — Chrome MV3 extension that lets a user save values ("entries") for web form fields (matched by URL + CSS selector) and inject them via a dropdown on focus/click. Also supports text-expansion snippets (type `@TZ` anywhere → suggestion). Entries are managed in a dedicated manager tab.
+**AutoFill** — Chrome MV3 extension that lets a user save values ("entries") for web form fields (matched by URL + CSS selector) and inject them via a dropdown on focus/click. Also supports text-expansion snippets (type `@TZ` anywhere → suggestion). Entries and snippets are managed in a dedicated manager tab, opened by clicking the toolbar icon (there is no popup).
 
 No build step. Plain JS files loaded directly. Hebrew UI (RTL).
 
 ## Current State
-- ✅ Working: entries CRUD (right-click panel, dropdown "add" button, manager tab, popup), dropdown on focus/click, URL match modes (global/domain/url-contains), snippets, auto-migration of legacy `af_rules`
+- ✅ Working: entries CRUD (right-click panel, dropdown "add" button, manager tab), manager filters/inline edit/undo/JSON import-export, dropdown on focus/click, URL match modes (global/domain/url-contains), snippets, auto-migration of legacy `af_rules`
 - 🚧 WIP: —
 - ❌ Known Issues: see "Gotchas" below (fragile generated selectors, snippets don't work in email/number inputs)
 
 ## Last Changes
+- 2026-10-20 (v1.4.0) — Toolbar popup removed (`popup/` deleted, no `default_popup`); icon click (`chrome.action.onClicked`) opens/focuses `manager/manager.html`, pre-filtered to the clicked page's site via hash `#url=…&sel=…` (re-filters an existing tab). Manager split into `manager/{manager.css,dom.js,entry-editor.js,snippets.js,backup.js,manager.js}`: snippet editor as collapsible section at top, filter chips, inline edit, delete with undo toast, JSON export/import. `__afStorage` gained `restoreEntries`/`appliesToUrl`. In-page panel sub-list shows scope, dims non-applicable entries, sends only changed fields, has a "ניהול מלא ←" link (`open-manager` message). Added `activeTab` permission. Not built on purpose: duplicate-entry, bulk select.
 - 2026-10-20 — `selector.js` bug fixes (API unchanged): no bogus `[type="textarea"]`; all DOM reads use prototype getters + `getAttribute` so form controls named `id`/`tagName`/`parentElement` can't shadow, throw or hang; `buildPath` replaced by `buildAnchoredPath` (nth-of-type chain from nearest unique stable-id ancestor or `<html>`, unique by construction); dynamic-id heuristic extended (`_r_`, embedded `:rX:`, `react-select-`, `cdk-`, `ui-id-`, `mantine-`).
 - 2026-10-20 — Dropdown closes on anchor focus loss / removal and ignores keys unless the anchor is active; `tryShow` hides the old dropdown on fields with no entries; contentEditable anchors on the editing host; `getToken` returns '' for runs > 20 chars; `snippet.js` is safe against double injection; email edit-away-from-end heuristic.
 - 2026-10-20 — Manager edit sends only `{id}` + form fields and closes if the entry was deleted elsewhere; `saveEntries` caches only after a successful write; selector text no longer uppercased in the manager; `host_permissions` dropped (reload the unpacked extension).
@@ -21,21 +22,19 @@ No build step. Plain JS files loaded directly. Hebrew UI (RTL).
 
 ## Entry Points
 - [manifest.json](manifest.json) — extension manifest, permissions, content-script load order
-- [background.js](background.js) — service worker (context menu only)
+- [background.js](background.js) — service worker (context menu, toolbar click, `open-manager` message)
 - [content/content.js](content/content.js) — content-script orchestrator
-- [popup/popup.html](popup/popup.html) — toolbar popup
-- [manager/manager.html](manager/manager.html) — full entries manager (new tab)
+- [manager/manager.html](manager/manager.html) — entries + snippets manager (tab opened by the toolbar icon; scripts in [manager/](manager/))
 
 ## Key Patterns Used
 - All content modules are IIFEs exporting `window.__af*` (no bundler, no imports)
-- Entries go through [content/storage.js](content/storage.js) everywhere (content scripts, and popup/manager via a `<script>` tag); mutations are queued and re-read storage. Snippets are read directly from storage (`af_snippets`) by both `snippet.js` and the popup.
+- Entries go through [content/storage.js](content/storage.js) everywhere (content scripts, and the manager via a `<script>` tag); mutations are queued and re-read storage. Snippets are read directly from storage (`af_snippets`) by `snippet.js`, and read/written by `manager/snippets.js` (and `backup.js` on import).
 - All injected UI uses Shadow DOM for CSS isolation ([content/dropdown.js](content/dropdown.js), [content/config-panel.js](content/config-panel.js))
 - Content-script load order is **critical** — see [PROJECT_MAP.md](PROJECT_MAP.md#content-script-load-order)
 - Kill switch at top of [content/snippet.js](content/snippet.js) (inside the IIFE, after the double-injection guard): `AF_SNIPPET_ENABLED`
 
 ## Next Steps
 - [ ] `<select>` / checkbox / radio support (different UX)
-- [ ] Import/export entries
 - [ ] Entry reordering
 
 ## Gotchas / Watch Out
@@ -48,7 +47,9 @@ No build step. Plain JS files loaded directly. Hebrew UI (RTL).
 - **Snippets in `type=email`/`number`** — these inputs expose no `selectionStart`; `getToken` assumes the cursor is at the end of the value, and `type=number` sanitizes non-numeric text so triggers like `@TZ` can't appear there.
 - **Dropdown focus coupling** — the dropdown closes when its anchor loses focus, so any new clickable element inside it must use `mousedown` + `preventDefault` (as items and the footer do). Snippet tokens longer than 20 chars are never matched.
 - **Email snippets** — `isEditAwayFromEnd` (content.js) is a best-effort heuristic; it can't catch a typed char equal to the last one, deletes or pastes. Ctrl+Z after expansion can garble the field (native setter breaks undo) — known, unfixed.
-- **No `host_permissions`** — injection comes from `content_scripts.matches`.
+- **No `host_permissions`, no `tabs`** — injection comes from `content_scripts.matches`; `activeTab` is the only extra permission (icon click reads the tab URL). **Unverified in a real Chrome:** `chrome.tabs.query` on the extension's own manager URL without the `tabs` permission (used to find an existing manager tab) — if it returns nothing, a new manager tab opens on every click; test this first on any manager-opening bug.
+- **Manager hash contract** — `manager.html#url=<page url>&sel=<css selector>`; the manager reacts to `hashchange`. `sender.tab.url` is hidden without `tabs`, so the `open-manager` handler uses `sender.url` only for `frameId === 0`.
+- **No modal / `confirm()` in the manager** — inline editing and undo toast (`restoreEntries`). Don't reintroduce a second management UI (popup) — see [DECISIONS.md](DECISIONS.md).
 - **Plaintext storage** — values live unencrypted in `chrome.storage.local`.
 - See [ARCHITECTURE.md](ARCHITECTURE.md) for full design.
 - See [CLAUDE.md](CLAUDE.md) for full API reference + storage schema.

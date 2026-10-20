@@ -4,6 +4,8 @@
 // addEntry(entry)          → Promise<Entry>   — auto-generates id + created
 // updateEntry(entry)       → Promise
 // deleteEntry(id)          → Promise
+// restoreEntries(entries)  → Promise          — re-adds full entries (keeps id/created), skips known ids
+// appliesToUrl(entry, url) → boolean          — does the entry's URL scope cover this URL
 //
 // Entry shape:
 // { id, selector, fieldLabel, name, value, matchType, matchValue, enabled, created }
@@ -101,11 +103,35 @@
     return _mutate(entries => entries.filter(e => e.id !== id));
   }
 
+  // Re-inserts complete entries keeping their id/created (undo-delete, JSON import).
+  // Entries whose id already exists are skipped, so it is safe to call twice.
+  function restoreEntries(restored) {
+    return _mutate(entries => {
+      const known = new Set(entries.map(e => e.id));
+      return [...entries, ...restored.filter(e => !known.has(e.id) && known.add(e.id))];
+    });
+  }
+
+  // True when `entry`'s URL scope covers `url` (a full URL string). Shared by the content
+  // script (live page), the config panel (dimming) and the manager (site filter).
+  function appliesToUrl(entry, url) {
+    const mt = entry.matchType || 'global';
+    const mv = entry.matchValue || '';
+    if (mt === 'global') return true;
+    if (mt === 'domain') {
+      try { return new URL(url).hostname === mv; } catch { return false; }
+    }
+    if (mt === 'url-contains') return Boolean(mv) && url.includes(mv);
+    return false;
+  }
+
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'local' && changes[KEY]) {
       _cache = changes[KEY].newValue || [];
     }
   });
 
-  window.__afStorage = { loadEntries, saveEntries, addEntry, updateEntry, deleteEntry };
+  window.__afStorage = {
+    loadEntries, saveEntries, addEntry, updateEntry, deleteEntry, restoreEntries, appliesToUrl,
+  };
 })();

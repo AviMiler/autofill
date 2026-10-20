@@ -43,12 +43,7 @@
   }
 
   function urlMatchesEntry(entry) {
-    const mt = entry.matchType || 'global';
-    const mv = entry.matchValue || '';
-    if (mt === 'global') return true;
-    if (mt === 'domain') return location.hostname === mv;
-    if (mt === 'url-contains') return mv && location.href.includes(mv);
-    return false;
+    return window.__afStorage.appliesToUrl(entry, location.href);
   }
 
   function matchingEntries(el) {
