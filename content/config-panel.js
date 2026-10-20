@@ -116,6 +116,8 @@
     overlay.appendChild(panel);
 
     const hostname = location.hostname;
+    // Full URL without #fragment (often transient SPA state). Stored as a 'url-contains' scope.
+    const pageUrl = location.href.split('#')[0];
     const generatedSel = element ? window.__afSelector.generate(element) : '';
 
     panel.innerHTML = `
@@ -142,6 +144,8 @@
       <div class="af-scope">
         <label><input type="radio" name="af-scope" value="global" checked> כל האתרים</label>
         <label><input type="radio" name="af-scope" value="domain"> רק ב-${escHtml(hostname)}</label>
+        <label><input type="radio" name="af-scope" value="url-full"> הדף הזה בלבד (ה-URL המלא)</label>
+        <div class="af-hint" dir="ltr" style="text-align:left;word-break:break-all">${escHtml(pageUrl)}</div>
         <label><input type="radio" name="af-scope" value="url-contains"> ה-URL מכיל את:</label>
         <input type="text" id="af-url-pattern" class="af-url-input"
           placeholder="למשל: /admin/ או ?lang=he">
@@ -193,6 +197,7 @@
       const matchType = panel.querySelector('input[name="af-scope"]:checked')?.value || 'global';
       let matchValue = '';
       if (matchType === 'domain') matchValue = hostname;
+      if (matchType === 'url-full') matchValue = pageUrl;
       if (matchType === 'url-contains') {
         matchValue = urlInput.value.trim();
         if (!matchValue) { urlInput.focus(); return; }
@@ -203,7 +208,7 @@
         fieldLabel: panel.querySelector('#af-fieldLabel').value.trim(),
         name: panel.querySelector('#af-name').value.trim(),
         value,
-        matchType,
+        matchType: matchType === 'url-full' ? 'url-contains' : matchType,
         matchValue,
       });
 
@@ -331,6 +336,12 @@
         info.append(nameIn, valIn);
         edit.textContent = '💾';
         edit.title = 'שמור';
+        const cancel = document.createElement('button');
+        cancel.className = 'af-icon';
+        cancel.textContent = '↩';
+        cancel.title = 'בטל עריכה';
+        cancel.addEventListener('click', rerender);
+        edit.after(cancel);
         valIn.focus();
         return;
       }

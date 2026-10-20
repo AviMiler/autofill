@@ -3,6 +3,7 @@
 See [AGENT_CONTEXT.md](AGENT_CONTEXT.md) for current state and [ARCHITECTURE.md](ARCHITECTURE.md) for design.
 
 ## v1.4.0 — 2026-10-20
+- **Added (panel):** "↩ בטל עריכה" button while editing a row in the saved-entries sub-list; new fixed scope option "הדף הזה בלבד (ה-URL המלא)" in the add-entry form (stored as `url-contains` with the page URL minus `#fragment`, so no schema change — it also matches longer URLs containing it).
 - **Removed:** toolbar popup (`popup/`, `action.default_popup`). The toolbar icon now opens the manager tab, or focuses/re-filters the existing one. Why: one management surface instead of two overlapping UIs.
 - **Added:** manager pre-filter to the clicked page's site (hash `#url=…&sel=…`); `activeTab` permission (reload the unpacked extension).
 - **Changed:** manager split into `manager/{manager.css,dom.js,entry-editor.js,snippets.js,backup.js,manager.js}`; snippet editor moved there as a collapsible top section; filter chips (all/global/current site/by domain); inline row editing replaces the modal; delete uses an undo toast instead of `confirm()`.

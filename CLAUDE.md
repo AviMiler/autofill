@@ -150,7 +150,7 @@ One entry = one selectable value for one field. Several entries sharing a `selec
 ### URL matching modes
 - `matchType: "global"` → matches every page (matchValue ignored)
 - `matchType: "domain"` → matchValue = hostname (e.g. `"example.com"`), exact hostname match (`www.example.com` ≠ `example.com`)
-- `matchType: "url-contains"` → matchValue = substring, matches if `location.href.includes(matchValue)` (case-sensitive)
+- `matchType: "url-contains"` → matchValue = substring, matches if `location.href.includes(matchValue)` (case-sensitive). The add-entry panel's "הדף הזה בלבד (ה-URL המלא)" option is stored as this type with matchValue = the page URL without `#fragment` (so it also matches longer URLs that contain it)
 
 Entries are matched with native `element.matches(selector)` after the URL check passes. In `tryShow`, entries with an identical `value` are de-duplicated (first one wins).
 
