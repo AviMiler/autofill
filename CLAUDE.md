@@ -47,7 +47,9 @@ deleteEntry(id)        → Promise
 ```
 The cache is kept in sync via `chrome.storage.onChanged`. `addEntry`/`updateEntry`/`deleteEntry` bypass the cache
 (re-read storage) and are serialized through an internal queue, so overlapping mutations in one context don't
-overwrite each other. A narrow cross-context window remains (two pages writing at the same instant).
+overwrite each other. `saveEntries` updates the cache only after `chrome.storage.local.set` succeeds; if the write
+rejects, the error propagates to the caller and the cache is left unchanged (no phantom entries). A narrow
+cross-context window remains (two pages writing at the same instant).
 
 ### `window.__afSelector`
 ```
@@ -80,7 +82,11 @@ hide()                                      → void
 isVisible()                                 → boolean
 getAnchor()                                 → element | null   // currently anchored field
 ```
-Keyboard: ArrowUp/Down moves focus, Enter selects the focused item, Escape closes.
+Keyboard: ArrowUp/Down moves focus, Enter selects the focused item, Escape closes. Keys act only while the anchor is the
+active element. The dropdown also closes when the anchor loses focus to anything outside the dropdown (items and the
+footer use `mousedown` + `preventDefault`, so focus stays on the field — new buttons must do the same) or when the
+anchor is removed from the DOM. For rich `contentEditable` fields the anchor is the topmost editing host, not the child
+node that was clicked. The ✕ button has `tabIndex=-1`.
 
 Positioning: while shown, the dropdown follows its anchor. It repositions on window `resize` and on any scroll
 (capture-phase, passive listener, coalesced into one `requestAnimationFrame`). It sits below the anchor, flips above when
@@ -104,12 +110,12 @@ refreshEntries()  → void   // reload entries from storage (called after add/ed
 
 ### `window.__afSnippet`
 ```
-getToken(el)         → string    // non-whitespace run ending at the cursor (max 20 chars), '' if none
-findMatches(token)    → Snippet[] // snippets whose trigger startsWith(token); [] if token.length < 2
+getToken(el)         → string    // non-whitespace run ending at the cursor; '' if none or if the run is longer than 20 chars
+findMatches(token)    → Snippet[] // snippets whose trigger startsWith(token); [] if token.length < 2; triggers longer than 20 chars are ignored
 ```
 
 Kill switches:
-- `AF_SNIPPET_ENABLED` (top of `content/snippet.js`) — disables snippet-trigger suggestions
+- `AF_SNIPPET_ENABLED` (top of `content/snippet.js`, inside the IIFE after the double-injection guard) — disables snippet-trigger suggestions
 
 ---
 
@@ -159,7 +165,7 @@ Global text-expansion shortcuts (no per-site/per-field targeting). Managed only 
 ---
 
 ## Manifest Permissions
-`storage`, `contextMenus`, plus `host_permissions: ["<all_urls>"]`.
+`storage`, `contextMenus`. There is no `host_permissions`: content-script injection is granted by `content_scripts.matches: ["<all_urls>"]` (with `all_frames: true`), and the background uses `chrome.tabs.sendMessage`, which needs no host access. After adding or removing permissions, reload the unpacked extension.
 
 ---
 
@@ -167,7 +173,9 @@ Global text-expansion shortcuts (no per-site/per-field targeting). Managed only 
 
 1. **Configure**: right-click any text field → "⚡ AutoFill: הגדר אפשרויות לשדה זה" → config panel opens (or use the "➕ הוסף מילוי חדש" button in an open dropdown)
 2. **Use**: focus OR click a configured field → dropdown appears → click option → field filled
-3. **Manage**: open the extension popup → "open manager" → full CRUD in a dedicated tab
+3. **Manage**: open the extension popup → "open manager" → full CRUD in a dedicated tab. Editing sends only `{id}` + the form fields (selector, fieldLabel, name, value, matchType, matchValue) to `updateEntry`, so `enabled`/`created` changed elsewhere are never overwritten; if the entry was deleted elsewhere meanwhile, the edit modal just closes (nothing is re-created).
+
+When focus moves to a field with no entries, `tryShow` hides the previous dropdown.
 
 Trigger: `content.js` binds `tryShow` to both `focus` and `click` events (capture phase).
 The visibility-check (`isVisible() && getAnchor() === el`) prevents flicker on first click.
@@ -210,9 +218,10 @@ window.__afFill.replaceTextBeforeCursor(document.querySelector('input'), '@TZ', 
 - Import/export entries
 - Entry reordering
 - Saved credentials / username-password autofill / HTTP Basic Auth (removed)
-- Selectors for pages whose fields have no stable attribute: ids that look auto-generated (React `:r1:`, 4+ digit runs, UUID/hex hashes, `ember123`, `ng-`/`mat-`/`mui-`/`radix-`/`headlessui-` prefixes) are skipped; the selector falls back to name → placeholder → aria-label → type → `nth-of-type`, which can still break if the page layout changes
+- Selectors for pages whose fields have no stable attribute: ids that look auto-generated (React `:r1:` / `«r1»` / `_r_…` including when embedded in a longer id, 4+ digit runs, UUID/hex hashes, `ember123`, `ng-`/`mat-`/`mui-`/`radix-`/`headlessui-`/`react-select-`/`cdk-`/`ui-id-`/`mantine-` prefixes) are skipped; the selector falls back to name → placeholder → aria-label → type (only when the `type` attribute is present) → a guaranteed-unique `nth-of-type` path anchored at the nearest unique stable-id ancestor (or `<html>`). That fallback can still break if the page layout changes. Counter-style ids of 1–3 digits (`input25`, `field_465`) can't be told apart from stable ids and are accepted as stable
 - Fields inside a page's own Shadow DOM (selectors don't pierce shadow roots)
 - Dropdown follow-the-anchor: the "clipped by overflow ancestor" check doesn't cross shadow roots, and a `fixed`/`absolute` anchor that legitimately escapes an overflow ancestor may be hidden wrongly (rare)
-- Snippets in `type=email` / `type=number` inputs work only at the end of the text (the browser exposes no cursor position there, so the cursor is assumed to be at the end); `type=number` can't hold non-numeric triggers at all
+- Snippets in `type=email` / `type=number` inputs work only at the end of the text (the browser exposes no cursor position there, so the cursor is assumed to be at the end). `content.js#isEditAwayFromEnd` skips the suggestion when the typed character is clearly not at the end of the value, but it can't catch a typed character equal to the last one, nor deletes or pastes; `type=number` can't hold non-numeric triggers at all
+- Ctrl+Z after a snippet expansion can restore previously deleted text (the native value setter breaks the browser's undo stack)
 - Snippet triggers with whitespace in them (matching is done on a whitespace-delimited token)
 - Snippet matching across multiple text nodes in `contentEditable` fields (only the current text node is checked)

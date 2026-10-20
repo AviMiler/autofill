@@ -2,6 +2,14 @@
 
 See [AGENT_CONTEXT.md](AGENT_CONTEXT.md) for current state and [ARCHITECTURE.md](ARCHITECTURE.md) for design.
 
+## 2026-10-20 — Fixes round 2
+- **Fixed:** [content/selector.js](content/selector.js) — textarea no longer gets a bogus `[type="textarea"]`; form controls named `id`/`name`/`tagName`/`parentElement` can't shadow properties (no throw, hang or bogus selector); the unanchored `buildPath` fallback is replaced by an anchored nth-of-type path (unique by construction); dynamic-id heuristic also rejects `_r_…`, embedded `:rX:`/`«rX»`, `react-select-`, `cdk-`, `ui-id-`, `mantine-`. Known limit: 1–3 digit counter ids (`input25`) are treated as stable.
+- **Fixed:** [content/dropdown.js](content/dropdown.js) / [content/content.js](content/content.js) — dropdown closes on anchor focus loss or removal (no more stale dropdown writing into the old field after Tab), keys act only while the anchor is active, contentEditable anchors on the editing host, ✕ button no longer a tab stop.
+- **Fixed:** [content/snippet.js](content/snippet.js) — runs longer than 20 chars are no longer matched (`Z@exactly20chars12345` bug); safe against double injection; email fields skip suggestions when the typed character is clearly not at the end (best effort).
+- **Fixed:** [manager/manager.js](manager/manager.js) edit sends only `{id}` + form fields (no stale `enabled` overwrite; closes if the entry was deleted elsewhere); [content/storage.js](content/storage.js) caches only after a successful write; selector text no longer uppercased in the manager.
+- **Changed:** [manifest.json](manifest.json) — removed `host_permissions` (not needed; reload the unpacked extension).
+- **Known limitations:** Ctrl+Z after snippet expansion can garble the field; cross-context simultaneous writes can still lose an update.
+
 ## 2026-10-20 — Dropdown follows its anchor
 - **Fixed:** [content/dropdown.js](content/dropdown.js) now repositions while shown (window resize + capture-phase passive scroll, rAF-coalesced), flips above on bottom overflow, clamps horizontally into the viewport (right-edge alignment for RTL anchors), and hides when the anchor is removed, zero-size, scrolled out of view or clipped by an overflow ancestor. `hide()` removes all added listeners and cancels the pending rAF. Public API unchanged.
 - **Known limitations:** clip detection doesn't cross shadow roots; a fixed/absolute anchor escaping an overflow ancestor may be hidden wrongly (rare).

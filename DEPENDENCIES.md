@@ -22,7 +22,8 @@ Set in [manifest.json](manifest.json):
 |------------|---------|--------|
 | `storage` | all surfaces | Persist entries (`af_entries`) and snippets (`af_snippets`) |
 | `contextMenus` | [background.js](background.js) | "Configure this field" right-click entry |
-| `host_permissions: ["<all_urls>"]` | content scripts | Extension must run on every page (content-script `matches` already covers injection) |
+
+No `host_permissions`: content scripts are injected via `content_scripts.matches` (`<all_urls>`), and the background only uses `chrome.tabs.sendMessage`.
 
 ## Why no dependencies
 - Project is small enough that pulling in libraries adds more risk than it saves.

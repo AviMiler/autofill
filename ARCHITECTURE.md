@@ -32,13 +32,13 @@ No build step, no framework, no dependencies. All content modules are IIFEs hang
 
 **Field-fill flow:**
 1. User focuses/clicks editable field → capture-phase listener in [content/content.js](content/content.js) fires
-2. `tryShow` checks: dropdown already shown for this field? (skip); which enabled entries match URL + selector? (de-duplicate by value)
+2. `tryShow` checks: dropdown already shown for this field? (skip); which enabled entries match URL + selector? (de-duplicate by value); no matches → hide any previous dropdown
 3. [content/dropdown.js](content/dropdown.js) shows Shadow-DOM dropdown
 4. User clicks option → [content/fill.js](content/fill.js) writes value to the element
 
 **Snippet flow:**
 1. User types in any editable field → capture-phase `input` listener (`trySnippet`) fires
-2. [content/snippet.js](content/snippet.js) extracts the token before the cursor and finds triggers starting with it (min 2 chars)
+2. [content/snippet.js](content/snippet.js) extracts the token before the cursor (none if the run is longer than 20 chars) and finds triggers starting with it (min 2 chars)
 3. Dropdown shows matches (re-shown on every keystroke, `suppressAutoHideOnInput`); selecting one calls `replaceTextBeforeCursor` so only the typed token is replaced
 
 ## Key Decisions
@@ -51,7 +51,8 @@ No build step, no framework, no dependencies. All content modules are IIFEs hang
 | Flat entries (one value per entry) instead of rules with `options[]` | Simpler CRUD in the manager; per-value scope and enable toggle. Legacy `af_rules` is migrated on first load |
 | Dedicated manager tab (not an overlay) | Works on any page and never overlays or conflicts with the host page |
 | Credentials / Basic Auth removed | Out of scope for the product; dropped in v1.3 along with `webRequest` permissions |
-| Kill switch as top-of-file constant | `AF_SNIPPET_ENABLED` in [content/snippet.js](content/snippet.js) disables snippets without removing code |
+| Kill switch as top-of-file constant | `AF_SNIPPET_ENABLED` in [content/snippet.js](content/snippet.js) disables snippets without removing code (inside the IIFE, after the double-injection guard) |
+| No `host_permissions` | `content_scripts.matches` already injects everywhere and nothing fetches cross-origin; fewer permissions and a smaller install warning |
 
 ## Patterns
 - **`window.__af*` IIFE module**: every content module wraps an `(() => { ... })()` with idempotent guard `if (window.__afXLoaded) return;` (or similar), assigns its API to a `window.__af*` global. See any file under [content/](content/).
@@ -67,5 +68,5 @@ No build step, no framework, no dependencies. All content modules are IIFEs hang
   - All user-provided strings rendered into extension pages go through `escHtml` or `textContent`.
 - **What's not protected:**
   - Values are plaintext on disk in the Chrome profile — don't store passwords or card numbers.
-  - `all_frames: true` and `<all_urls>` — the dropdown can appear in third-party iframes.
+  - `all_frames: true` with content-script `matches: ["<all_urls>"]` — the dropdown can appear in third-party iframes.
   - Entry writes are read-modify-write on the whole array: serialized within one context, but two contexts writing at the exact same instant can still race.
