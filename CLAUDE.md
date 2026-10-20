@@ -203,6 +203,7 @@ window.__afFill.replaceTextBeforeCursor(document.querySelector('input'), '@TZ', 
 - Import/export entries
 - Entry reordering
 - Saved credentials / username-password autofill / HTTP Basic Auth (removed)
+- Selectors for pages whose fields have no stable attribute: ids that look auto-generated (React `:r1:`, 4+ digit runs, UUID/hex hashes, `ember123`, `ng-`/`mat-`/`mui-`/`radix-`/`headlessui-` prefixes) are skipped; the selector falls back to name → placeholder → aria-label → type → `nth-of-type`, which can still break if the page layout changes
 - Fields inside a page's own Shadow DOM (selectors don't pierce shadow roots)
 - Snippets in `type=email` / `type=number` inputs work only at the end of the text (the browser exposes no cursor position there, so the cursor is assumed to be at the end); `type=number` can't hold non-numeric triggers at all
 - Snippet triggers with whitespace in them (matching is done on a whitespace-delimited token)

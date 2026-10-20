@@ -40,7 +40,7 @@ No build step. Plain JS files loaded directly. Hebrew UI (RTL).
 - **`all_frames: true`** — content scripts run in iframes too. Guard with `if (window.__afXLoaded) return;` to avoid double-init.
 - **Service worker has no DOM** — `background.js` can't touch `document` / `window`.
 - **Domain match is exact** — `www.example.com` ≠ `example.com`.
-- **Generated selectors can be fragile** — dynamic ids (e.g. React `:r1:`) and `nth-of-type` paths may break between loads; the panel shows a "unique" badge only for the current page state.
+- **Generated selectors can be fragile** — `selector.js#isDynamicId` skips auto-generated-looking ids (React `:r1:`, 4+ digits, UUID/hash, framework prefixes) and falls back to name/placeholder/aria-label/type, but `nth-of-type` paths may still break when the layout changes; the heuristic is conservative, so an unusual dynamic id can still slip through; the panel shows a "unique" badge only for the current page state.
 - **Snippets in `type=email`/`number`** — these inputs expose no `selectionStart`; `getToken` assumes the cursor is at the end of the value, and `type=number` sanitizes non-numeric text so triggers like `@TZ` can't appear there.
 - **Plaintext storage** — values live unencrypted in `chrome.storage.local`.
 - See [ARCHITECTURE.md](ARCHITECTURE.md) for full design.

@@ -39,11 +39,25 @@
     return path;
   }
 
+  // Ids that frameworks generate per page load; a selector built on them breaks after reload.
+  // Deliberately conservative: plain human-readable ids ("email", "user_email", "step2") pass.
+  const DYNAMIC_ID_PATTERNS = [
+    /^[:«]/,                                        // React useId: ":r1:", "«r1»"
+    /\d{4,}/,                                       // long digit run: "input-83921"
+    /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}/i,         // UUID
+    /[0-9a-f]{16,}/i,                               // long hex hash
+    /^(ember\d|ng-|mat-|mui-|rc_select_|radix-|headlessui-|react-aria|downshift-|ext-gen)/i // framework prefixes
+  ];
+
+  function isDynamicId(id) {
+    return DYNAMIC_ID_PATTERNS.some(re => re.test(id));
+  }
+
   function getSingleElementSelector(el) {
     // Return the "best" single selector for just this element (no ancestors).
     const tag = el.tagName.toLowerCase();
 
-    if (el.id) {
+    if (el.id && !isDynamicId(el.id)) {
       return `#${esc(el.id)}`;
     }
 

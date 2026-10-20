@@ -2,6 +2,9 @@
 
 See [AGENT_CONTEXT.md](AGENT_CONTEXT.md) for current state and [ARCHITECTURE.md](ARCHITECTURE.md) for design.
 
+## 2026-10-20 — Stable selectors
+- **Fixed:** [content/selector.js](content/selector.js) no longer builds selectors from auto-generated ids (React `:r1:`, long digit runs, UUID/hash, `ember`/`ng-`/`mat-`/… prefixes); it falls back to name → placeholder → aria-label → type → `nth-of-type`. Public API unchanged.
+
 ## 2026-10-20 — Snippets in email inputs
 - **Fixed:** [content/snippet.js](content/snippet.js) `getToken` falls back to the end of the value when `selectionStart` is null (`type=email`); [content/fill.js](content/fill.js) no longer throws from `setSelectionRange` on such inputs. Typing in the middle of the text is not supported there.
 
