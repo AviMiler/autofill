@@ -1,5 +1,5 @@
 # Agent Context
-_Last updated: 2026-10-20 — fixes round 2 (selectors, dropdown focus, manager edit safety, no host_permissions); v1.3.2 base: entries model, manager tab, snippets; credentials removed_
+_Last updated: 2026-10-20 — fixes round 2 (selectors, dropdown focus, manager edit safety, no host_permissions); v1.3.3: entries model, manager tab, snippets; credentials removed_
 
 ## What This Project Is
 **AutoFill** — Chrome MV3 extension that lets a user save values ("entries") for web form fields (matched by URL + CSS selector) and inject them via a dropdown on focus/click. Also supports text-expansion snippets (type `@TZ` anywhere → suggestion). Entries are managed in a dedicated manager tab.

@@ -2,7 +2,7 @@
 
 Chrome MV3 extension. No build step — plain JS files loaded directly.
 
-## Status: v1.3.2 — Entries model + manager tab
+## Status: v1.3.3 — Entries model + manager tab
 Core autofill (entries model, per-selector/per-URL matching) complete. Text-expansion snippets
 (user-defined trigger strings, e.g. `@TZ`, that suggest a stored value while typing in any field) are supported.
 Management of saved entries happens in a dedicated manager tab (`manager/manager.html`), opened from the popup.
