@@ -63,8 +63,9 @@
   }
 
   async function saveEntries(entries) {
-    _cache = entries;
+    // Cache only after the write lands, so a rejected set() (e.g. quota) leaves no phantom entry.
     await chrome.storage.local.set({ [KEY]: entries });
+    _cache = entries;
   }
 
   // Mutations re-read storage (never the cache) and run one at a time, so

@@ -216,8 +216,8 @@ function openModal(entry) {
       if (!matchValue) return;
     }
 
+    // Form fields only: never echo the render-time snapshot, or enabled/created changed elsewhere get reverted.
     const data = {
-      ...(entry || {}),
       selector,
       fieldLabel: modal.querySelector('#af-fieldLabel').value.trim(),
       name: modal.querySelector('#af-name').value.trim(),
@@ -228,9 +228,10 @@ function openModal(entry) {
 
     if (isNew) {
       await addEntry(data);
-    } else {
-      await updateEntry(data);
+    } else if ((await loadEntries()).some(e => e.id === entry.id)) {
+      await updateEntry({ id: entry.id, ...data });
     }
+    // else: entry was deleted elsewhere meanwhile — updateEntry would be a no-op, so just close.
 
     backdrop.remove();
   });
