@@ -29,9 +29,9 @@ Load as unpacked extension from this directory.
 
 Content scripts load order (critical): `storage → selector → fill → dropdown → config-panel → snippet → content`
 
-Note: `popup.js` and `manager.js` are extension pages, not content scripts — they read/write `chrome.storage.local`
-directly with their own small `loadEntries`/`saveEntries` helpers (they do not load `__afStorage`), and snippets
-are read/written by `popup.js` and `snippet.js` directly (there is no snippet CRUD in `__afStorage`).
+Note: `popup.js` and `manager.js` are extension pages, not content scripts — they load `content/storage.js`
+via a `<script>` tag and use `__afStorage` for entries. Snippets are read/written by `popup.js` and `snippet.js`
+directly (there is no snippet CRUD in `__afStorage`).
 
 ---
 
@@ -45,7 +45,9 @@ addEntry(entry)        → Promise<Entry>     // auto-generates id + created; de
 updateEntry(entry)     → Promise            // merges by id
 deleteEntry(id)        → Promise
 ```
-The cache is kept in sync via `chrome.storage.onChanged`.
+The cache is kept in sync via `chrome.storage.onChanged`. `addEntry`/`updateEntry`/`deleteEntry` bypass the cache
+(re-read storage) and are serialized through an internal queue, so overlapping mutations in one context don't
+overwrite each other. A narrow cross-context window remains (two pages writing at the same instant).
 
 ### `window.__afSelector`
 ```

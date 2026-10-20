@@ -56,7 +56,7 @@ AutoFill/
 | File | Description |
 |------|-------------|
 | [manager/manager.html](manager/manager.html) | Manager markup — searchable list grouped by selector, add/edit modal |
-| [manager/manager.js](manager/manager.js) | Full CRUD over `af_entries` (direct `chrome.storage.local`) |
+| [manager/manager.js](manager/manager.js) | Full CRUD over `af_entries` via `__afStorage` (loads `content/storage.js`) |
 
 ### popup/
 | File | Description |

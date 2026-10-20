@@ -1,13 +1,4 @@
-const KEY = 'af_entries';
-
-async function loadEntries() {
-  const data = await chrome.storage.local.get(KEY);
-  return data[KEY] || [];
-}
-
-async function saveEntries(entries) {
-  await chrome.storage.local.set({ [KEY]: entries });
-}
+const { loadEntries, updateEntry, deleteEntry } = window.__afStorage;
 
 async function render() {
   const entries = await loadEntries();
@@ -59,13 +50,11 @@ async function render() {
       `;
 
       row.querySelector('input[type=checkbox]').addEventListener('change', async ev => {
-        const all = await loadEntries();
-        await saveEntries(all.map(e => e.id === entry.id ? { ...e, enabled: ev.target.checked } : e));
+        await updateEntry({ id: entry.id, enabled: ev.target.checked });
       });
 
       row.querySelector('.af-del-btn').addEventListener('click', async () => {
-        const all = await loadEntries();
-        await saveEntries(all.filter(e => e.id !== entry.id));
+        await deleteEntry(entry.id);
         render();
       });
 

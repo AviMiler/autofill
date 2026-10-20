@@ -67,8 +67,19 @@
     await chrome.storage.local.set({ [KEY]: entries });
   }
 
+  // Mutations re-read storage (never the cache) and run one at a time, so
+  // overlapping add/update/delete calls can't overwrite each other's changes.
+  let _queue = Promise.resolve();
+  function _mutate(fn) {
+    const run = _queue.then(async () => {
+      _cache = null;
+      await saveEntries(fn(await loadEntries()));
+    });
+    _queue = run.catch(() => {});
+    return run;
+  }
+
   async function addEntry(entry) {
-    const entries = await loadEntries();
     const newEntry = {
       matchType: 'global',
       matchValue: '',
@@ -77,18 +88,16 @@
       id: _genId(),
       created: Date.now(),
     };
-    await saveEntries([...entries, newEntry]);
+    await _mutate(entries => [...entries, newEntry]);
     return newEntry;
   }
 
-  async function updateEntry(updated) {
-    const entries = await loadEntries();
-    await saveEntries(entries.map(e => e.id === updated.id ? { ...e, ...updated } : e));
+  function updateEntry(updated) {
+    return _mutate(entries => entries.map(e => e.id === updated.id ? { ...e, ...updated } : e));
   }
 
-  async function deleteEntry(id) {
-    const entries = await loadEntries();
-    await saveEntries(entries.filter(e => e.id !== id));
+  function deleteEntry(id) {
+    return _mutate(entries => entries.filter(e => e.id !== id));
   }
 
   chrome.storage.onChanged.addListener((changes, area) => {

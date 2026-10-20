@@ -17,7 +17,7 @@ No build step, no framework, no dependencies. All content modules are IIFEs hang
 |---------|---------|--------------|-------------|
 | Background (service worker — [background.js](background.js)) | ❌ | ✅ full | → content scripts via `chrome.tabs.sendMessage` |
 | Content scripts ([content/*.js](content/)) | ✅ (host page) | ✅ limited | ← background, reads/writes `chrome.storage.local` |
-| Popup ([popup/popup.js](popup/popup.js)) and manager ([manager/manager.js](manager/manager.js)) | ✅ (own page) | ✅ limited | read/write `chrome.storage.local` directly |
+| Popup ([popup/popup.js](popup/popup.js)) and manager ([manager/manager.js](manager/manager.js)) | ✅ (own page) | ✅ limited | load [content/storage.js](content/storage.js) and use `__afStorage` |
 
 ### Message Flow
 
@@ -68,4 +68,4 @@ No build step, no framework, no dependencies. All content modules are IIFEs hang
 - **What's not protected:**
   - Values are plaintext on disk in the Chrome profile — don't store passwords or card numbers.
   - `all_frames: true` and `<all_urls>` — the dropdown can appear in third-party iframes.
-  - Popup/manager writes are unsynchronized read-modify-write on the whole array (last writer wins).
+  - Entry writes are read-modify-write on the whole array: serialized within one context, but two contexts writing at the exact same instant can still race.

@@ -9,7 +9,7 @@ No build step. Plain JS files loaded directly. Hebrew UI (RTL).
 ## Current State
 - ✅ Working: entries CRUD (right-click panel, dropdown "add" button, manager tab, popup), dropdown on focus/click, URL match modes (global/domain/url-contains), snippets, auto-migration of legacy `af_rules`
 - 🚧 WIP: —
-- ❌ Known Issues: see "Gotchas" below (concurrent-write race in popup/manager, fragile generated selectors, snippets don't work in email/number inputs)
+- ❌ Known Issues: see "Gotchas" below (fragile generated selectors, snippets don't work in email/number inputs)
 
 ## Last Changes
 - v1.3.x — "➕ הוסף מילוי חדש" footer button in the dropdown; saved-entries sub-list in the add-entry panel; dropdown close (✕) button.
@@ -24,7 +24,7 @@ No build step. Plain JS files loaded directly. Hebrew UI (RTL).
 
 ## Key Patterns Used
 - All content modules are IIFEs exporting `window.__af*` (no bundler, no imports)
-- Entries go through [content/storage.js](content/storage.js) in content scripts; popup and manager access `chrome.storage.local` directly (own helpers). Snippets are read directly from storage (`af_snippets`) by both `snippet.js` and the popup.
+- Entries go through [content/storage.js](content/storage.js) everywhere (content scripts, and popup/manager via a `<script>` tag); mutations are queued and re-read storage. Snippets are read directly from storage (`af_snippets`) by both `snippet.js` and the popup.
 - All injected UI uses Shadow DOM for CSS isolation ([content/dropdown.js](content/dropdown.js), [content/config-panel.js](content/config-panel.js))
 - Content-script load order is **critical** — see [PROJECT_MAP.md](PROJECT_MAP.md#content-script-load-order)
 - Kill switch at top of [content/snippet.js](content/snippet.js): `AF_SNIPPET_ENABLED`
@@ -33,7 +33,6 @@ No build step. Plain JS files loaded directly. Hebrew UI (RTL).
 - [ ] `<select>` / checkbox / radio support (different UX)
 - [ ] Import/export entries
 - [ ] Entry reordering
-- [ ] Route popup/manager writes through one shared storage helper (avoid read-modify-write races)
 
 ## Gotchas / Watch Out
 - **No build step.** Don't add `import`/`export`. Use `window.__af*` namespace.

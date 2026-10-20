@@ -4,18 +4,7 @@
 
 const KEY = 'af_entries';
 
-async function loadEntries() {
-  const data = await chrome.storage.local.get(KEY);
-  return data[KEY] || [];
-}
-
-async function saveEntries(entries) {
-  await chrome.storage.local.set({ [KEY]: entries });
-}
-
-function genId() {
-  return `e_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-}
+const { loadEntries, addEntry, updateEntry, deleteEntry } = window.__afStorage;
 
 let allEntries = [];
 let searchQuery = '';
@@ -97,8 +86,7 @@ function buildEntryRow(entry) {
   cb.type = 'checkbox';
   cb.checked = entry.enabled !== false;
   cb.addEventListener('change', async () => {
-    const all = await loadEntries();
-    await saveEntries(all.map(e => e.id === entry.id ? { ...e, enabled: cb.checked } : e));
+    await updateEntry({ id: entry.id, enabled: cb.checked });
   });
   const slider = document.createElement('span');
   slider.className = 'af-slider';
@@ -140,8 +128,7 @@ function buildEntryRow(entry) {
   delBtn.textContent = '🗑';
   delBtn.addEventListener('click', async () => {
     if (!confirm('למחוק מילוי זה?')) return;
-    const all = await loadEntries();
-    await saveEntries(all.filter(e => e.id !== entry.id));
+    await deleteEntry(entry.id);
   });
 
   actions.appendChild(editBtn);
@@ -213,8 +200,7 @@ function openModal(entry) {
 
   modal.querySelector('#af-del')?.addEventListener('click', async () => {
     if (!confirm('למחוק?')) return;
-    const all = await loadEntries();
-    await saveEntries(all.filter(e => e.id !== entry.id));
+    await deleteEntry(entry.id);
     backdrop.remove();
   });
 
@@ -240,11 +226,10 @@ function openModal(entry) {
       matchValue,
     };
 
-    const all = await loadEntries();
     if (isNew) {
-      await saveEntries([...all, { enabled: true, ...data, id: genId(), created: Date.now() }]);
+      await addEntry(data);
     } else {
-      await saveEntries(all.map(e => e.id === data.id ? { ...e, ...data } : e));
+      await updateEntry(data);
     }
 
     backdrop.remove();
