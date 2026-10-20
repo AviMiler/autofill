@@ -165,7 +165,7 @@ flattened into one entry per option (string options become `{ name: '', value }`
   { "id": "s_1716xxx_abc", "trigger": "@TZ", "value": "123456789", "created": 1716000000 }
 ]
 ```
-Global text-expansion shortcuts (no per-site/per-field targeting). Managed only from the manager's collapsible snippet section (open/closed state persisted in `chrome.storage.local` key `af_ui_snippets_open`). While typing in any editable field, `content.js#trySnippet` (bound to a capture-phase `input` listener) reads the token ending at the cursor via `__afSnippet.getToken`, finds triggers that start with it via `__afSnippet.findMatches` (case-sensitive), and shows the dropdown (live-updating per keystroke via `opts.suppressAutoHideOnInput`). Selecting an item calls `__afFill.replaceTextBeforeCursor(el, token, value)`, replacing only the typed token — not the whole field.
+Global text-expansion shortcuts (no per-site/per-field targeting). Add / edit (inline) / delete only in the manager's collapsible snippet section (open/closed state persisted in `chrome.storage.local` key `af_ui_snippets_open`). While typing in any editable field, `content.js#trySnippet` (bound to a capture-phase `input` listener) reads the token ending at the cursor via `__afSnippet.getToken`, finds triggers that start with it via `__afSnippet.findMatches` (case-sensitive), and shows the dropdown (live-updating per keystroke via `opts.suppressAutoHideOnInput`). Selecting an item calls `__afFill.replaceTextBeforeCursor(el, token, value)`, replacing only the typed token — not the whole field.
 
 ---
 

@@ -67,6 +67,8 @@ select.af-chip { padding-inline: 8px; }
   flex: 1; min-width: 0; font-size: 12px; color: #888; direction: ltr; text-align: left;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+.af-snippet-row .af-input { flex: 1; min-width: 0; }
+.af-snippet-row .af-input:first-child { flex: 0 0 150px; }
 .af-snippet-add { display: flex; gap: 6px; padding: 8px 0 12px; border-top: 1px solid #f3f3f3; }
 .af-snippet-add input { flex: 1; min-width: 0; padding: 6px 9px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; }
 .af-snippet-add input:first-child { flex: 0 0 150px; }

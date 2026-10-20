@@ -16,6 +16,48 @@
     return chrome.storage.local.set({ [SNIPPET_KEY]: list });
   }
 
+  let editingId = null; // snippet row currently open for editing
+
+  function buildEditRow(snippet) {
+    const row = el('div', 'af-snippet-row');
+    const triggerIn = el('input', 'af-input');
+    const valueIn = el('input', 'af-input');
+    [triggerIn.type, valueIn.type] = ['text', 'text'];
+    [triggerIn.dir, valueIn.dir] = ['ltr', 'ltr'];
+    triggerIn.value = snippet.trigger;
+    valueIn.value = snippet.value;
+    triggerIn.style.flex = '0 0 150px';
+
+    const close = () => { editingId = null; render(); };
+    const saveBtn = el('button', 'af-btn primary', 'שמור');
+    const cancelBtn = el('button', 'af-btn', 'בטל');
+    cancelBtn.addEventListener('click', close);
+    saveBtn.addEventListener('click', async () => {
+      const trigger = triggerIn.value.trim();
+      const value = valueIn.value.trim();
+      if (!trigger) { triggerIn.focus(); return; }
+      if (!value) { valueIn.focus(); return; }
+      // Re-read so a snippet deleted/changed elsewhere meanwhile is never resurrected or clobbered.
+      try {
+        const current = await loadSnippets();
+        if (current.some(s => s.id === snippet.id)) {
+          await saveSnippets(current.map(s => (s.id === snippet.id ? { ...s, trigger, value } : s)));
+        }
+        close();
+      } catch (err) {
+        console.error('[snippets] save failed:', err);
+        showToast('השמירה נכשלה');
+      }
+    });
+    row.addEventListener('keydown', e => {
+      if (e.key === 'Escape') close();
+      else if (e.key === 'Enter' && e.target.tagName === 'INPUT') saveBtn.click();
+    });
+    row.append(triggerIn, valueIn, saveBtn, cancelBtn);
+    setTimeout(() => valueIn.focus(), 0);
+    return row;
+  }
+
   async function render() {
     const snippets = await loadSnippets();
     const listEl = document.getElementById('af-snippet-list');
@@ -24,7 +66,14 @@
     if (!snippets.length) listEl.appendChild(el('div', 'af-snippet-empty', 'אין קיצורים עדיין.'));
 
     snippets.forEach(snippet => {
+      if (snippet.id === editingId) {
+        listEl.appendChild(buildEditRow(snippet));
+        return;
+      }
       const row = el('div', 'af-snippet-row');
+      const editBtn = el('button', 'af-icon-btn', '✏️');
+      editBtn.title = 'ערוך';
+      editBtn.addEventListener('click', () => { editingId = snippet.id; render(); });
       const delBtn = el('button', 'af-icon-btn del', '🗑');
       delBtn.title = 'מחק';
       delBtn.addEventListener('click', async () => {
@@ -34,7 +83,7 @@
           if (!current.some(s => s.id === snippet.id)) await saveSnippets([...current, snippet]);
         });
       });
-      row.append(el('span', 'af-snippet-trigger', snippet.trigger), el('span', 'af-snippet-value', snippet.value), delBtn);
+      row.append(el('span', 'af-snippet-trigger', snippet.trigger), el('span', 'af-snippet-value', snippet.value), editBtn, delBtn);
       listEl.appendChild(row);
     });
   }
@@ -65,7 +114,8 @@
     details.addEventListener('toggle', () => chrome.storage.local.set({ [UI_KEY]: details.open }));
     document.getElementById('af-snippet-form').addEventListener('submit', addSnippet);
     chrome.storage.onChanged.addListener((changes, area) => {
-      if (area === 'local' && changes[SNIPPET_KEY]) render();
+      // An open editor would be wiped by a re-render; it re-renders itself on close.
+      if (area === 'local' && changes[SNIPPET_KEY] && !editingId) render();
     });
     render();
   }
