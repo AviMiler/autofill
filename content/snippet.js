@@ -31,8 +31,8 @@ const AF_SNIPPET_ENABLED = true;
       if (!node || node.nodeType !== Node.TEXT_NODE) return '';
       textBeforeCursor = node.textContent.slice(0, sel.focusOffset);
     } else {
-      const cursor = el.selectionStart;
-      if (cursor == null) return '';
+      // type=email/number expose no selection (null) — assume the cursor is at the end.
+      const cursor = el.selectionStart ?? el.value.length;
       textBeforeCursor = el.value.slice(0, cursor);
     }
     const tail = textBeforeCursor.slice(-MAX_TOKEN_LEN);

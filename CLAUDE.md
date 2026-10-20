@@ -204,6 +204,6 @@ window.__afFill.replaceTextBeforeCursor(document.querySelector('input'), '@TZ', 
 - Entry reordering
 - Saved credentials / username-password autofill / HTTP Basic Auth (removed)
 - Fields inside a page's own Shadow DOM (selectors don't pierce shadow roots)
-- Snippets in `type=email` / `type=number` inputs (the browser exposes no cursor position there)
+- Snippets in `type=email` / `type=number` inputs work only at the end of the text (the browser exposes no cursor position there, so the cursor is assumed to be at the end); `type=number` can't hold non-numeric triggers at all
 - Snippet triggers with whitespace in them (matching is done on a whitespace-delimited token)
 - Snippet matching across multiple text nodes in `contentEditable` fields (only the current text node is checked)

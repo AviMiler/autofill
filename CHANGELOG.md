@@ -2,6 +2,9 @@
 
 See [AGENT_CONTEXT.md](AGENT_CONTEXT.md) for current state and [ARCHITECTURE.md](ARCHITECTURE.md) for design.
 
+## 2026-10-20 — Snippets in email inputs
+- **Fixed:** [content/snippet.js](content/snippet.js) `getToken` falls back to the end of the value when `selectionStart` is null (`type=email`); [content/fill.js](content/fill.js) no longer throws from `setSelectionRange` on such inputs. Typing in the middle of the text is not supported there.
+
 ## 2026-10-20 — Storage race fix
 - **Fixed:** [content/storage.js](content/storage.js) `addEntry/updateEntry/deleteEntry` now re-read storage and run through a serial queue (previously read-modify-write on a possibly stale cache could drop concurrent changes).
 - **Changed:** [popup/popup.js](popup/popup.js) and [manager/manager.js](manager/manager.js) use `__afStorage` (loaded via `<script src="../content/storage.js">`) instead of duplicated load/save helpers.

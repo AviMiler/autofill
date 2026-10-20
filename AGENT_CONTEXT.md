@@ -41,7 +41,7 @@ No build step. Plain JS files loaded directly. Hebrew UI (RTL).
 - **Service worker has no DOM** — `background.js` can't touch `document` / `window`.
 - **Domain match is exact** — `www.example.com` ≠ `example.com`.
 - **Generated selectors can be fragile** — dynamic ids (e.g. React `:r1:`) and `nth-of-type` paths may break between loads; the panel shows a "unique" badge only for the current page state.
-- **Snippets need a text cursor** — `type=email`/`number` inputs expose no `selectionStart`, so snippets don't trigger there.
+- **Snippets in `type=email`/`number`** — these inputs expose no `selectionStart`; `getToken` assumes the cursor is at the end of the value, and `type=number` sanitizes non-numeric text so triggers like `@TZ` can't appear there.
 - **Plaintext storage** — values live unencrypted in `chrome.storage.local`.
 - See [ARCHITECTURE.md](ARCHITECTURE.md) for full design.
 - See [CLAUDE.md](CLAUDE.md) for full API reference + storage schema.

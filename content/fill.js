@@ -56,7 +56,7 @@
     const newValue = el.value.slice(0, start) + value + el.value.slice(cursor);
     setter.call(el, newValue);
     const caret = start + value.length;
-    el.setSelectionRange(caret, caret);
+    try { el.setSelectionRange(caret, caret); } catch { /* type=email/number don't support selection */ }
     dispatchEvents(el);
   }
 
