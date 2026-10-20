@@ -2,19 +2,23 @@
 
 See [AGENT_CONTEXT.md](AGENT_CONTEXT.md) for current state and [ARCHITECTURE.md](ARCHITECTURE.md) for design.
 
-## 2026-06-03 — v1.1 Credentials
-- **Added:** [content/credential.js](content/credential.js) — `window.__afCredential` with `load` / `save` / `clear` / `isUsernameField` / `isPasswordField`. Broad detection: type, autocomplete, id, name, class, placeholder, aria-*, `formcontrolname`, `data-*`, linked `<label>`, plus Hebrew terms (סיסמ, משתמש, אימייל, ...).
-- **Added:** [background.js](background.js) — `chrome.webRequest.onAuthRequired` listener with `asyncBlocking` so HTTP Basic Auth dialogs auto-fill from `af_credential`.
-- **Added:** [popup/popup.html](popup/popup.html) + [popup/popup.js](popup/popup.js) — credential editor section at top of popup (username, password with show/hide toggle, save, clear, status).
-- **Changed:** [content/content.js](content/content.js) `tryShow` — on username/password fields, prepends saved credential to dropdown items.
-- **Changed:** [manifest.json](manifest.json) — added permissions `webRequest`, `webRequestAuthProvider`; added `content/credential.js` to content-script load order (before `content.js`).
-- **Added:** Kill switches `AF_CREDENTIAL_ENABLED` (top of [content/credential.js](content/credential.js)) and `AF_BASIC_AUTH_ENABLED` (top of [background.js](background.js)) for one-line disable.
-- **Updated:** [CLAUDE.md](CLAUDE.md) — credential API, storage schema, permissions, testing snippet.
-- **Added:** Tracking files [AGENT_CONTEXT.md](AGENT_CONTEXT.md), [PROJECT_MAP.md](PROJECT_MAP.md), [ARCHITECTURE.md](ARCHITECTURE.md), [CHANGELOG.md](CHANGELOG.md), [DEPENDENCIES.md](DEPENDENCIES.md).
+## 2026-10-20 — Docs sync
+- **Updated:** [CLAUDE.md](CLAUDE.md), [AGENT_CONTEXT.md](AGENT_CONTEXT.md), [PROJECT_MAP.md](PROJECT_MAP.md), [ARCHITECTURE.md](ARCHITECTURE.md), [DEPENDENCIES.md](DEPENDENCIES.md) to match the v1.3.2 code: entries model (`af_entries`, `loadEntries/addEntry/…`), `opts.onAdd` dropdown footer, manager tab, snippets without `__afStorage` helpers, no credentials / Basic Auth / `webRequest`.
+- **Changed:** [AGENTS.md](AGENTS.md) — was a stale copy of CLAUDE.md; now a pointer to it.
+- **Added:** known-limitations list (no Shadow-DOM page fields, snippets not in email/number inputs, exact-hostname domain match).
+
+## v1.3 — Entries model + manager tab
+- **Changed:** rules with `options[]` replaced by flat entries in `af_entries` (legacy `af_rules` auto-migrated on first load).
+- **Added:** [manager/manager.html](manager/manager.html) + [manager/manager.js](manager/manager.js) — standalone entries manager opened from the popup.
+- **Added:** [content/snippet.js](content/snippet.js) — text-expansion snippets (`af_snippets`), `AF_SNIPPET_ENABLED` kill switch.
+- **Added:** dropdown close (✕) button, "➕ הוסף מילוי חדש" footer button, saved-entries sub-list in the add-entry panel.
+- **Removed:** credentials (`content/credential.js`), HTTP Basic Auth listener, `webRequest` / `webRequestAuthProvider` permissions.
+
+## v1.1 — Credentials (since removed in v1.3)
+- Global username/password for HTTP Basic Auth dialogs and detected login fields.
 
 ## v1.0 — initial release
 - Rule-based autofill with URL matching (global / domain / url-contains) and CSS selectors.
 - Right-click context menu to configure fields.
 - Shadow-DOM dropdown + config panel.
 - Popup for rule list / toggle / delete.
-- See [CLAUDE.md](CLAUDE.md) for full v1.0 spec.

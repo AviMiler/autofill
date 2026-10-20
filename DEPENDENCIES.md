@@ -7,9 +7,10 @@ See [AGENT_CONTEXT.md](AGENT_CONTEXT.md) for what the project is.
 
 | Surface | Uses |
 |---------|------|
-| All content scripts | Browser DOM APIs only |
-| [background.js](background.js) | `chrome.contextMenus`, `chrome.tabs`, `chrome.runtime`, `chrome.storage`, `chrome.webRequest` |
-| [popup/popup.js](popup/popup.js) | `chrome.storage` |
+| All content scripts | Browser DOM APIs + `chrome.storage` |
+| [background.js](background.js) | `chrome.contextMenus`, `chrome.tabs`, `chrome.runtime` |
+| [popup/popup.js](popup/popup.js) | `chrome.storage`, `chrome.tabs`, `chrome.runtime` |
+| [manager/manager.js](manager/manager.js) | `chrome.storage` |
 
 ## Build dependencies
 **None.** No bundler, no transpiler. Files are loaded directly by Chrome as listed in [manifest.json](manifest.json).
@@ -19,13 +20,10 @@ Set in [manifest.json](manifest.json):
 
 | Permission | Used by | Reason |
 |------------|---------|--------|
-| `storage` | all surfaces | Persist rules (`af_rules`) and credential (`af_credential`) |
+| `storage` | all surfaces | Persist entries (`af_entries`) and snippets (`af_snippets`) |
 | `contextMenus` | [background.js](background.js) | "Configure this field" right-click entry |
-| `webRequest` | [background.js](background.js) | Needed to register `onAuthRequired` listener |
-| `webRequestAuthProvider` | [background.js](background.js) | Required (MV3) to call `callback({authCredentials})` and bypass Basic Auth dialog |
-| `host_permissions: ["<all_urls>"]` | content scripts + Basic Auth listener | Extension must run on every page |
+| `host_permissions: ["<all_urls>"]` | content scripts | Extension must run on every page (content-script `matches` already covers injection) |
 
 ## Why no dependencies
 - Project is small enough that pulling in libraries adds more risk than it saves.
 - No build step → editing JS files reloads instantly via `chrome://extensions` Reload button.
-- Avoids supply-chain risk on an extension that holds credentials.

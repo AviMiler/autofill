@@ -2,11 +2,11 @@
 
 Chrome MV3 extension. No build step — plain JS files loaded directly.
 
-## Status: v1.3 — Entries model + manager tab
+## Status: v1.3.2 — Entries model + manager tab
 Core autofill (entries model, per-selector/per-URL matching) complete. Text-expansion snippets
 (user-defined trigger strings, e.g. `@TZ`, that suggest a stored value while typing in any field) are supported.
 Management of saved entries happens in a dedicated manager tab (`manager/manager.html`), opened from the popup.
-There is no saved-credential / username-password feature — it was removed.
+There is no saved-credential / username-password feature and no HTTP Basic Auth handling — both were removed.
 Load as unpacked extension from this directory.
 
 ---
@@ -16,12 +16,12 @@ Load as unpacked extension from this directory.
 | File | Exports | Role |
 |------|---------|------|
 | `manifest.json` | — | MV3 config, permissions, content script load order |
-| `background.js` | — | Service worker: context menu + message routing |
+| `background.js` | — | Service worker: context menu → sends `open-config` to the content script |
 | `content/storage.js` | `window.__afStorage` | chrome.storage.local wrapper for entries (auto-migrates legacy `af_rules`) |
 | `content/selector.js` | `window.__afSelector` | Generate stable CSS selectors from DOM elements |
 | `content/fill.js` | `window.__afFill` | Fill input/textarea/contentEditable fields; snippet text replacement |
-| `content/dropdown.js` | `window.__afDropdown` | Shadow DOM suggestion dropdown UI (no action buttons) |
-| `content/config-panel.js` | `window.__afConfig` | Shadow DOM "add new entry" panel, opened via right-click |
+| `content/dropdown.js` | `window.__afDropdown` | Shadow DOM suggestion dropdown UI (close button, optional "add new entry" footer) |
+| `content/config-panel.js` | `window.__afConfig` | Shadow DOM "add new entry" panel (opened via right-click or dropdown footer) + per-field saved-entries sub-list |
 | `content/snippet.js` | `window.__afSnippet` | Snippet cache + trigger-token matching for text-expansion shortcuts |
 | `content/content.js` | `window.__afContent` | Orchestrator: focus/click → match → dropdown; also `input` → snippet-trigger detection → dropdown |
 | `manager/manager.html` + `manager.js` | — | Standalone extension page (opened in a new tab): full CRUD over saved entries |
@@ -29,24 +29,23 @@ Load as unpacked extension from this directory.
 
 Content scripts load order (critical): `storage → selector → fill → dropdown → config-panel → snippet → content`
 
+Note: `popup.js` and `manager.js` are extension pages, not content scripts — they read/write `chrome.storage.local`
+directly with their own small `loadEntries`/`saveEntries` helpers (they do not load `__afStorage`), and snippets
+are read/written by `popup.js` and `snippet.js` directly (there is no snippet CRUD in `__afStorage`).
+
 ---
 
 ## Public APIs
 
 ### `window.__afStorage`
 ```
-loadRules()           → Promise<Rule[]>
-saveRules(rules)      → Promise
-addRule(rule)         → Promise<Rule>    // auto-generates id + created
-updateRule(rule)      → Promise
-deleteRule(id)        → Promise
-
-loadSnippets()         → Promise<Snippet[]>
-saveSnippets(snippets) → Promise
-addSnippet(snippet)    → Promise<Snippet>  // auto-generates id + created
-updateSnippet(snippet) → Promise
-deleteSnippet(id)      → Promise
+loadEntries()          → Promise<Entry[]>   // cached; first call migrates legacy af_rules
+saveEntries(entries)   → Promise
+addEntry(entry)        → Promise<Entry>     // auto-generates id + created; defaults matchType 'global', enabled true
+updateEntry(entry)     → Promise            // merges by id
+deleteEntry(id)        → Promise
 ```
+The cache is kept in sync via `chrome.storage.onChanged`.
 
 ### `window.__afSelector`
 ```
@@ -64,12 +63,13 @@ replaceTextBeforeCursor(el, matchText, value) → void
 
 ### `window.__afDropdown`
 ```
-show(anchorEl, items[], onSelect, onEdit, opts?)   → void
+show(anchorEl, items[], onSelect, opts?)   → void
   // items: array of { name?, value } OR strings (treated as { value: s })
   // Render: name present → two-line (bold name + gray monospace value).
   //         name absent  → single-line value.
   // onSelect receives the value string.
-  // onEdit: falsy → the "⚙️ ערוך אפשרויות" row is omitted.
+  // opts.onAdd: function → adds a bottom "➕ הוסף מילוי חדש" footer button that
+  //   hides the dropdown and calls it. Omitted → no footer.
   // opts.suppressAutoHideOnInput: true → skip the default auto-hide-on-input
   //   behavior. Needed by callers that re-show() on every keystroke themselves
   //   (e.g. live snippet suggestions) — otherwise the dropdown closes itself
@@ -78,12 +78,15 @@ hide()                                      → void
 isVisible()                                 → boolean
 getAnchor()                                 → element | null   // currently anchored field
 ```
+Keyboard: ArrowUp/Down moves focus, Enter selects the focused item, Escape closes.
 
 ### `window.__afConfig`
 ```
-show(element, existingRule | null) → void   // null = create new rule
-hide()                             → void
+show(element) → void   // opens the "add new entry" panel for element (selector auto-generated)
+hide()        → void
 ```
+The panel also has a "show all saved entries for this field" button that opens a sub-list
+(toggle / inline edit / delete) filtered by the selector currently in the selector input.
 
 ### `window.__afContent`
 ```
@@ -103,39 +106,38 @@ Kill switches:
 
 ## Storage Schema
 
-### Rules — key: `af_rules`
+### Entries — key: `af_entries`
+
+One entry = one selectable value for one field. Several entries sharing a `selector` appear together in that field's dropdown.
 
 ```json
 [
   {
-    "id": "r_1716xxx_abc",
+    "id": "e_1716xxx_abc",
+    "selector": "input[name='email']",
+    "fieldLabel": "אימייל",
+    "name": "אישי",
+    "value": "user@gmail.com",
     "matchType": "global" | "domain" | "url-contains",
     "matchValue": "",
-    "selector": "input[name='email']",
-    "label": "אימייל",
-    "options": [
-      { "name": "אישי", "value": "user@gmail.com" },
-      { "name": "",     "value": "work@company.com" }
-    ],
     "enabled": true,
     "created": 1716000000
   }
 ]
 ```
+- `fieldLabel` — display only (group title in popup/manager). `name` — optional; shown as the bold first line in the dropdown. Filling always uses `value`.
 
 ### URL matching modes
 - `matchType: "global"` → matches every page (matchValue ignored)
-- `matchType: "domain"` → matchValue = hostname (e.g. `"example.com"`), matches exact hostname
+- `matchType: "domain"` → matchValue = hostname (e.g. `"example.com"`), exact hostname match (`www.example.com` ≠ `example.com`)
 - `matchType: "url-contains"` → matchValue = substring, matches if `location.href.includes(matchValue)` (case-sensitive)
 
-### Option shape
-Each option is `{ name, value }`. `name` is optional — shown in dropdown as `"name — value"` when present, otherwise just `value`. Filling always uses `value`.
+Entries are matched with native `element.matches(selector)` after the URL check passes. In `tryShow`, entries with an identical `value` are de-duplicated (first one wins).
 
-### Backward compat
-- Old rules with only a `domain` field still work. `content.js#urlMatches` and `popup.js` both fall back: `domain === "*"` → global, anything else → domain match. New writes use `matchType` + `matchValue` and strip the legacy `domain` field on update.
-- Old options stored as plain strings are auto-normalized in `content.js` and `config-panel.js#normalizeOpt` to `{ name: '', value: str }`.
-
-Rules matched using native `element.matches(selector)` after URL check passes.
+### Legacy migration (`af_rules` → `af_entries`)
+`storage.js#loadEntries` runs once, when `af_entries` does not exist but the legacy `af_rules` key does: each rule's `options[]` is
+flattened into one entry per option (string options become `{ name: '', value }`; legacy `domain` field is mapped to
+`matchType`/`matchValue`; rule `label` becomes `fieldLabel`). The legacy key is left in place, untouched.
 
 ### Snippets — key: `af_snippets`
 ```json
@@ -143,20 +145,20 @@ Rules matched using native `element.matches(selector)` after URL check passes.
   { "id": "s_1716xxx_abc", "trigger": "@TZ", "value": "123456789", "created": 1716000000 }
 ]
 ```
-Global text-expansion shortcuts (no per-site/per-field targeting). While typing in any editable field, `content.js#trySnippet` (bound to a capture-phase `input` listener) reads the token ending at the cursor via `__afSnippet.getToken`, finds triggers that start with it via `__afSnippet.findMatches`, and shows the dropdown (prefix matches, live-updating per keystroke via `opts.suppressAutoHideOnInput`). Selecting an item calls `__afFill.replaceTextBeforeCursor(el, token, value)`, replacing only the typed token — not the whole field.
+Global text-expansion shortcuts (no per-site/per-field targeting). Managed only from the popup. While typing in any editable field, `content.js#trySnippet` (bound to a capture-phase `input` listener) reads the token ending at the cursor via `__afSnippet.getToken`, finds triggers that start with it via `__afSnippet.findMatches` (case-sensitive), and shows the dropdown (live-updating per keystroke via `opts.suppressAutoHideOnInput`). Selecting an item calls `__afFill.replaceTextBeforeCursor(el, token, value)`, replacing only the typed token — not the whole field.
 
 ---
 
 ## Manifest Permissions
-`storage`, `contextMenus`.
+`storage`, `contextMenus`, plus `host_permissions: ["<all_urls>"]`.
 
 ---
 
 ## How It Works
 
-1. **Configure**: right-click any text field → "⚡ AutoFill: הגדר אפשרויות לשדה זה" → config panel opens
+1. **Configure**: right-click any text field → "⚡ AutoFill: הגדר אפשרויות לשדה זה" → config panel opens (or use the "➕ הוסף מילוי חדש" button in an open dropdown)
 2. **Use**: focus OR click a configured field → dropdown appears → click option → field filled
-3. **Edit**: click "⚙️ ערוך אפשרויות" in the dropdown, or open extension popup
+3. **Manage**: open the extension popup → "open manager" → full CRUD in a dedicated tab
 
 Trigger: `content.js` binds `tryShow` to both `focus` and `click` events (capture phase).
 The visibility-check (`isVisible() && getAnchor() === el`) prevents flicker on first click.
@@ -169,8 +171,8 @@ The visibility-check (`isVisible() && getAnchor() === el`) prevents flicker on f
 
 ```js
 // Check storage
-await window.__afStorage.loadRules()
-await window.__afStorage.addRule({ domain:'*', selector:'input', label:'test', options:['a','b'] })
+await window.__afStorage.loadEntries()
+await window.__afStorage.addEntry({ selector:'input', fieldLabel:'test', name:'a', value:'hello' })
 
 // Check selector
 window.__afSelector.generate(document.querySelector('input'))
@@ -180,13 +182,13 @@ window.__afSelector.isUnique('input[name="q"]')
 window.__afFill.fillField(document.querySelector('input'), 'hello world')
 
 // Check dropdown (open on currently focused input)
-window.__afDropdown.show(document.activeElement, ['opt 1','opt 2'], v=>console.log(v), ()=>{})
+window.__afDropdown.show(document.activeElement, ['opt 1','opt 2'], v=>console.log(v), { onAdd: ()=>console.log('add') })
 
 // Check config panel
-window.__afConfig.show(document.querySelector('input'), null)
+window.__afConfig.show(document.querySelector('input'))
 
-// Check snippets
-await window.__afStorage.addSnippet({ trigger: '@TZ', value: '123456789' })
+// Check snippets (snippets are plain storage; there is no __afStorage helper)
+await chrome.storage.local.set({ af_snippets: [{ id:'s_test', trigger:'@TZ', value:'123456789', created: Date.now() }] })
 window.__afSnippet.getToken(document.activeElement)      // token ending at cursor
 window.__afSnippet.findMatches('@T')                      // matching snippets
 window.__afFill.replaceTextBeforeCursor(document.querySelector('input'), '@TZ', '123456789')
@@ -198,6 +200,8 @@ window.__afFill.replaceTextBeforeCursor(document.querySelector('input'), '@TZ', 
 - `<select>`, checkbox, radio fields (different UX needed)
 - Import/export entries
 - Entry reordering
-- Saved credentials / username-password autofill (removed)
+- Saved credentials / username-password autofill / HTTP Basic Auth (removed)
+- Fields inside a page's own Shadow DOM (selectors don't pierce shadow roots)
+- Snippets in `type=email` / `type=number` inputs (the browser exposes no cursor position there)
 - Snippet triggers with whitespace in them (matching is done on a whitespace-delimited token)
 - Snippet matching across multiple text nodes in `contentEditable` fields (only the current text node is checked)

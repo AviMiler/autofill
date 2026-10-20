@@ -1,43 +1,48 @@
 # Agent Context
-_Last updated: 2026-06-03 — added global credential feature (v1.1)_
+_Last updated: 2026-10-20 — docs synced with v1.3.2 code (entries model, manager tab, snippets; credentials removed)_
 
 ## What This Project Is
-**AutoFill** — Chrome MV3 extension that lets a user save text snippets for any web form field (matched by URL + CSS selector) and inject them via a popup dropdown on focus/click. v1.1 adds one global username/password used for HTTP Basic Auth dialogs and detected login fields.
+**AutoFill** — Chrome MV3 extension that lets a user save values ("entries") for web form fields (matched by URL + CSS selector) and inject them via a dropdown on focus/click. Also supports text-expansion snippets (type `@TZ` anywhere → suggestion). Entries are managed in a dedicated manager tab.
 
 No build step. Plain JS files loaded directly. Hebrew UI (RTL).
 
 ## Current State
-- ✅ Working: rule CRUD, dropdown on focus/click, context-menu "Configure", URL match modes (global/domain/url-contains), popup management, credential autofill for Basic Auth + login fields
+- ✅ Working: entries CRUD (right-click panel, dropdown "add" button, manager tab, popup), dropdown on focus/click, URL match modes (global/domain/url-contains), snippets, auto-migration of legacy `af_rules`
 - 🚧 WIP: —
-- ❌ Known Issues: credential stored plaintext in `chrome.storage.local` (acceptable for closed network — see [ARCHITECTURE.md](ARCHITECTURE.md#security-model))
+- ❌ Known Issues: see "Gotchas" below (concurrent-write race in popup/manager, fragile generated selectors, snippets don't work in email/number inputs)
 
 ## Last Changes
-- 2026-06-03 — Added credential feature: [content/credential.js](content/credential.js) (new), Basic Auth listener in [background.js](background.js), credential row injection in [content/content.js](content/content.js), credential editor section in [popup/popup.html](popup/popup.html) + [popup/popup.js](popup/popup.js), manifest permissions `webRequest` + `webRequestAuthProvider`. Kill switches added.
+- v1.3.x — "➕ הוסף מילוי חדש" footer button in the dropdown; saved-entries sub-list in the add-entry panel; dropdown close (✕) button.
+- v1.3 — Entries model replaces rules; manager tab added; snippets added; credentials / Basic Auth removed (see [CHANGELOG.md](CHANGELOG.md)).
 
 ## Entry Points
 - [manifest.json](manifest.json) — extension manifest, permissions, content-script load order
-- [background.js](background.js) — service worker (context menu + Basic Auth)
+- [background.js](background.js) — service worker (context menu only)
 - [content/content.js](content/content.js) — content-script orchestrator
 - [popup/popup.html](popup/popup.html) — toolbar popup
+- [manager/manager.html](manager/manager.html) — full entries manager (new tab)
 
 ## Key Patterns Used
 - All content modules are IIFEs exporting `window.__af*` (no bundler, no imports)
-- All storage access goes through `chrome.storage.local` directly (rules via [content/storage.js](content/storage.js), credential via [content/credential.js](content/credential.js))
-- All UI uses Shadow DOM for CSS isolation ([content/dropdown.js](content/dropdown.js), [content/config-panel.js](content/config-panel.js))
+- Entries go through [content/storage.js](content/storage.js) in content scripts; popup and manager access `chrome.storage.local` directly (own helpers). Snippets are read directly from storage (`af_snippets`) by both `snippet.js` and the popup.
+- All injected UI uses Shadow DOM for CSS isolation ([content/dropdown.js](content/dropdown.js), [content/config-panel.js](content/config-panel.js))
 - Content-script load order is **critical** — see [PROJECT_MAP.md](PROJECT_MAP.md#content-script-load-order)
-- Kill switches at top of files: `AF_CREDENTIAL_ENABLED`, `AF_BASIC_AUTH_ENABLED`
+- Kill switch at top of [content/snippet.js](content/snippet.js): `AF_SNIPPET_ENABLED`
 
 ## Next Steps
 - [ ] `<select>` / checkbox / radio support (different UX)
-- [ ] Import/export rules
-- [ ] Rule reordering in popup
+- [ ] Import/export entries
+- [ ] Entry reordering
+- [ ] Route popup/manager writes through one shared storage helper (avoid read-modify-write races)
 
 ## Gotchas / Watch Out
 - **No build step.** Don't add `import`/`export`. Use `window.__af*` namespace.
 - **Content-script load order matters** — see [manifest.json](manifest.json). `content.js` must be last.
 - **`all_frames: true`** — content scripts run in iframes too. Guard with `if (window.__afXLoaded) return;` to avoid double-init.
 - **Service worker has no DOM** — `background.js` can't touch `document` / `window`.
-- **`isPasswordField` is broad** — matches `type=password`, `autocomplete=current-password/new-password`, and id/name/class/aria/data-* + Hebrew "סיסמ". Don't narrow without checking real-world login forms.
-- **Credential plaintext** — fine for closed network only. Don't ship publicly without encryption.
+- **Domain match is exact** — `www.example.com` ≠ `example.com`.
+- **Generated selectors can be fragile** — dynamic ids (e.g. React `:r1:`) and `nth-of-type` paths may break between loads; the panel shows a "unique" badge only for the current page state.
+- **Snippets need a text cursor** — `type=email`/`number` inputs expose no `selectionStart`, so snippets don't trigger there.
+- **Plaintext storage** — values live unencrypted in `chrome.storage.local`.
 - See [ARCHITECTURE.md](ARCHITECTURE.md) for full design.
 - See [CLAUDE.md](CLAUDE.md) for full API reference + storage schema.
