@@ -2,6 +2,10 @@
 
 See [AGENT_CONTEXT.md](AGENT_CONTEXT.md) for current state and [ARCHITECTURE.md](ARCHITECTURE.md) for design.
 
+## 2026-10-20 — Dropdown follows its anchor
+- **Fixed:** [content/dropdown.js](content/dropdown.js) now repositions while shown (window resize + capture-phase passive scroll, rAF-coalesced), flips above on bottom overflow, clamps horizontally into the viewport (right-edge alignment for RTL anchors), and hides when the anchor is removed, zero-size, scrolled out of view or clipped by an overflow ancestor. `hide()` removes all added listeners and cancels the pending rAF. Public API unchanged.
+- **Known limitations:** clip detection doesn't cross shadow roots; a fixed/absolute anchor escaping an overflow ancestor may be hidden wrongly (rare).
+
 ## 2026-10-20 — Stable selectors
 - **Fixed:** [content/selector.js](content/selector.js) no longer builds selectors from auto-generated ids (React `:r1:`, long digit runs, UUID/hash, `ember`/`ng-`/`mat-`/… prefixes); it falls back to name → placeholder → aria-label → type → `nth-of-type`. Public API unchanged.
 

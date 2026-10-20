@@ -1,5 +1,5 @@
 # Agent Context
-_Last updated: 2026-10-20 — docs synced with v1.3.2 code (entries model, manager tab, snippets; credentials removed)_
+_Last updated: 2026-10-20 — dropdown follows its anchor (v1.3.2 base: entries model, manager tab, snippets; credentials removed)_
 
 ## What This Project Is
 **AutoFill** — Chrome MV3 extension that lets a user save values ("entries") for web form fields (matched by URL + CSS selector) and inject them via a dropdown on focus/click. Also supports text-expansion snippets (type `@TZ` anywhere → suggestion). Entries are managed in a dedicated manager tab.
@@ -12,6 +12,7 @@ No build step. Plain JS files loaded directly. Hebrew UI (RTL).
 - ❌ Known Issues: see "Gotchas" below (fragile generated selectors, snippets don't work in email/number inputs)
 
 ## Last Changes
+- 2026-10-20 — Dropdown now follows its anchor (reposition on scroll/resize, flip above, horizontal clamp, auto-hide when anchor removed/out of view/clipped); `hide()` cleans all listeners. Known limits: clip check doesn't cross shadow roots; fixed/absolute anchors escaping an overflow ancestor may be hidden wrongly.
 - v1.3.x — "➕ הוסף מילוי חדש" footer button in the dropdown; saved-entries sub-list in the add-entry panel; dropdown close (✕) button.
 - v1.3 — Entries model replaces rules; manager tab added; snippets added; credentials / Basic Auth removed (see [CHANGELOG.md](CHANGELOG.md)).
 

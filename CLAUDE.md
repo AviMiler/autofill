@@ -82,6 +82,13 @@ getAnchor()                                 → element | null   // currently an
 ```
 Keyboard: ArrowUp/Down moves focus, Enter selects the focused item, Escape closes.
 
+Positioning: while shown, the dropdown follows its anchor. It repositions on window `resize` and on any scroll
+(capture-phase, passive listener, coalesced into one `requestAnimationFrame`). It sits below the anchor, flips above when
+it would overflow the bottom (only if it fits there), and is clamped horizontally into the viewport (right edges are
+aligned for RTL anchors). It auto-hides when the anchor is removed from the DOM, has zero size, is scrolled out of view,
+or is clipped by an overflow ancestor. `hide()` removes every listener and cancels the pending rAF, so repeated
+`show()` calls (snippet flow) don't leak.
+
 ### `window.__afConfig`
 ```
 show(element) → void   // opens the "add new entry" panel for element (selector auto-generated)
@@ -205,6 +212,7 @@ window.__afFill.replaceTextBeforeCursor(document.querySelector('input'), '@TZ', 
 - Saved credentials / username-password autofill / HTTP Basic Auth (removed)
 - Selectors for pages whose fields have no stable attribute: ids that look auto-generated (React `:r1:`, 4+ digit runs, UUID/hex hashes, `ember123`, `ng-`/`mat-`/`mui-`/`radix-`/`headlessui-` prefixes) are skipped; the selector falls back to name → placeholder → aria-label → type → `nth-of-type`, which can still break if the page layout changes
 - Fields inside a page's own Shadow DOM (selectors don't pierce shadow roots)
+- Dropdown follow-the-anchor: the "clipped by overflow ancestor" check doesn't cross shadow roots, and a `fixed`/`absolute` anchor that legitimately escapes an overflow ancestor may be hidden wrongly (rare)
 - Snippets in `type=email` / `type=number` inputs work only at the end of the text (the browser exposes no cursor position there, so the cursor is assumed to be at the end); `type=number` can't hold non-numeric triggers at all
 - Snippet triggers with whitespace in them (matching is done on a whitespace-delimited token)
 - Snippet matching across multiple text nodes in `contentEditable` fields (only the current text node is checked)
