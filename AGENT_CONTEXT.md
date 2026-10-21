@@ -1,5 +1,5 @@
 # Agent Context
-_Last updated: 2026-10-20 — v1.4.0: popup removed, manager is the single management surface (snippets, filters, inline edit, undo, JSON import/export); entries model, snippets; credentials removed_
+_Last updated: 2026-10-21 — v1.5.0: full UI redesign (minimal neutral design system, light/dark, SVG icons, Rubik font, manager sidebar, in-page popover); see [docs/REDESIGN-v1.5.md](docs/REDESIGN-v1.5.md)_
 
 ## What This Project Is
 **AutoFill** — Chrome MV3 extension that lets a user save values ("entries") for web form fields (matched by URL + CSS selector) and inject them via a dropdown on focus/click. Also supports text-expansion snippets (type `@TZ` anywhere → suggestion). Entries and snippets are managed in a dedicated manager tab, opened by clicking the toolbar icon (there is no popup).
@@ -12,6 +12,7 @@ No build step. Plain JS files loaded directly. Hebrew UI (RTL).
 - ❌ Known Issues: see "Gotchas" below (fragile generated selectors, snippets don't work in email/number inputs)
 
 ## Last Changes
+- 2026-10-21 (v1.5.0) — UI redesign of every surface, spec in [docs/REDESIGN-v1.5.md](docs/REDESIGN-v1.5.md). New `content/icons.js` (`__afIcons`, loaded after `fill.js`). Dropdown: first item pre-selected (Enter fills it), footer with keyboard hints + close, `opts.highlight` for snippet triggers, scrollable list. Add-entry panel is now a popover anchored to the field: value + display name visible, scope select defaulting to "this site", field label/selector under "מתקדם", field label guessed from the page; saved-entries view inside the popover with two-step delete. Manager: sidebar (entries / snippets / backup views + filter by site), copy-value button, empty states, bundled Rubik font, responsive. New icon set in `icons/` (old `icon.png` removed). `af_ui_snippets_open` no longer used.
 - 2026-10-20 — Manager snippets section: inline edit of existing snippets (`manager/snippets.js`; the list does not redraw while an editor is open, it re-renders on close).
 - 2026-10-20 — Panel: cancel (↩) button when editing a row in the saved-entries sub-list; add-entry form has a fixed "הדף הזה בלבד (ה-URL המלא)" scope (saved as `url-contains` + page URL without `#fragment`).
 - 2026-10-20 (v1.4.0) — Toolbar popup removed (`popup/` deleted, no `default_popup`); icon click (`chrome.action.onClicked`) opens/focuses `manager/manager.html`, pre-filtered to the clicked page's site via hash `#url=…&sel=…` (re-filters an existing tab). Manager split into `manager/{manager.css,dom.js,entry-editor.js,snippets.js,backup.js,manager.js}`: snippet editor as collapsible section at top, filter chips, inline edit, delete with undo toast, JSON export/import. `__afStorage` gained `restoreEntries`/`appliesToUrl`. In-page panel sub-list shows scope, dims non-applicable entries, sends only changed fields, has a "ניהול מלא ←" link (`open-manager` message). Added `activeTab` permission. Not built on purpose: duplicate-entry, bulk select.
@@ -51,6 +52,7 @@ No build step. Plain JS files loaded directly. Hebrew UI (RTL).
 - **Email snippets** — `isEditAwayFromEnd` (content.js) is a best-effort heuristic; it can't catch a typed char equal to the last one, deletes or pastes. Ctrl+Z after expansion can garble the field (native setter breaks undo) — known, unfixed.
 - **No `host_permissions`, no `tabs`** — injection comes from `content_scripts.matches`; `activeTab` is the only extra permission (icon click reads the tab URL). **Unverified in a real Chrome:** `chrome.tabs.query` on the extension's own manager URL without the `tabs` permission (used to find an existing manager tab) — if it returns nothing, a new manager tab opens on every click; test this first on any manager-opening bug.
 - **Manager hash contract** — `manager.html#url=<page url>&sel=<css selector>`; the manager reacts to `hashchange`. `sender.tab.url` is hidden without `tabs`, so the `open-manager` handler uses `sender.url` only for `frameId === 0`.
+- **Design system:** colors only through the CSS variables (`manager.css` `:root`, and per-shadow-root variables in `dropdown.js`/`config-panel.js`), always with a dark-mode value; icons only from `content/icons.js`, no emoji in UI strings.
 - **No modal / `confirm()` in the manager** — inline editing and undo toast (`restoreEntries`). Don't reintroduce a second management UI (popup) — see [DECISIONS.md](DECISIONS.md).
 - **Plaintext storage** — values live unencrypted in `chrome.storage.local`.
 - See [ARCHITECTURE.md](ARCHITECTURE.md) for full design.

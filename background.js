@@ -6,7 +6,7 @@ const MANAGER_PATH = 'manager/manager.html';
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
     id: 'af-configure',
-    title: '⚡ AutoFill: הגדר אפשרויות לשדה זה',
+    title: 'AutoFill: הגדר אפשרויות לשדה זה',
     contexts: ['editable'],
     documentUrlPatterns: ['https://*/*', 'http://*/*', 'file:///*'],
   });

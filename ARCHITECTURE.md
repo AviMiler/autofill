@@ -1,5 +1,5 @@
 # Architecture
-_Last updated: 2026-10-20 (v1.4.0)_
+_Last updated: 2026-10-21 (v1.5.0)_
 
 See [AGENT_CONTEXT.md](AGENT_CONTEXT.md) for project status and [PROJECT_MAP.md](PROJECT_MAP.md) for file layout.
 
@@ -23,15 +23,15 @@ No build step, no framework, no dependencies. All content modules are IIFEs hang
 
 **Entry configuration (right-click flow):**
 1. User right-clicks editable field → Chrome shows context menu (registered by [background.js](background.js))
-2. User clicks "⚡ AutoFill: הגדר אפשרויות לשדה זה"
+2. User clicks "AutoFill: הגדר אפשרויות לשדה זה"
 3. [background.js](background.js) calls `chrome.tabs.sendMessage(tabId, {action: 'open-config'}, {frameId})`
 4. [content/content.js](content/content.js)'s `onMessage` handler finds the last right-clicked editable element via `findEditableTarget` (walks up DOM)
-5. [content/config-panel.js](content/config-panel.js) renders the Shadow-DOM panel (same panel opens from the dropdown's "➕ הוסף מילוי חדש" button)
+5. [content/config-panel.js](content/config-panel.js) renders the Shadow-DOM popover anchored to the field (same popover opens from the dropdown footer's "מילוי חדש" button)
 6. On save, [content/storage.js](content/storage.js) writes to `chrome.storage.local['af_entries']`
 7. `chrome.storage.onChanged` fires → [content/storage.js](content/storage.js) cache, [content/content.js](content/content.js) and the manager all refresh
 
 **Open-manager flow (no popup):**
-1. Toolbar icon click → `chrome.action.onClicked` in [background.js](background.js) (`activeTab` makes the clicked tab's URL readable). Alternatively the panel's "ניהול מלא ←" button sends runtime message `{action:'open-manager', selector}`.
+1. Toolbar icon click → `chrome.action.onClicked` in [background.js](background.js) (`activeTab` makes the clicked tab's URL readable). Alternatively the popover's "פתיחה במנהל" button sends runtime message `{action:'open-manager', selector}`.
 2. `openManager()` builds `manager.html#url=<page url>&sel=<selector>` (both optional; `url` only for http/https/file; for the message, `sender.url` is used only when `frameId === 0`).
 3. If a manager tab exists (`chrome.tabs.query` on the extension's own URL) it is updated to the new hash and focused (`tabs.update` + `windows.update`); otherwise a new tab is created.
 4. The manager applies the hash on load and on `hashchange`: current hostname + global entries, and/or a selector-filter pill.

@@ -2,12 +2,15 @@
 
 Chrome MV3 extension. No build step — plain JS files loaded directly.
 
-## Status: v1.4.0 — Manager as the single management surface
+## Status: v1.5.0 — UI redesign (minimal neutral design system, light/dark)
 Core autofill (entries model, per-selector/per-URL matching) complete. Text-expansion snippets
 (user-defined trigger strings, e.g. `@TZ`, that suggest a stored value while typing in any field) are supported.
 There is no toolbar popup. Clicking the toolbar icon opens (or focuses) the manager tab (`manager/manager.html`), which manages
 both entries and snippets. From a normal web page it opens pre-filtered to that page's site.
 There is no saved-credential / username-password feature and no HTTP Basic Auth handling — both were removed.
+All UI surfaces share one minimal neutral design (black/white accent, thin SVG icons from `content/icons.js`,
+light/dark via `prefers-color-scheme`); the manager uses the bundled Rubik font. Full spec + rationale of the redesign:
+[docs/REDESIGN-v1.5.md](docs/REDESIGN-v1.5.md).
 Load as unpacked extension from this directory.
 
 ---
@@ -21,16 +24,19 @@ Load as unpacked extension from this directory.
 | `content/storage.js` | `window.__afStorage` | chrome.storage.local wrapper for entries (auto-migrates legacy `af_rules`) |
 | `content/selector.js` | `window.__afSelector` | Generate stable CSS selectors from DOM elements |
 | `content/fill.js` | `window.__afFill` | Fill input/textarea/contentEditable fields; snippet text replacement |
-| `content/dropdown.js` | `window.__afDropdown` | Shadow DOM suggestion dropdown UI (close button, optional "add new entry" footer) |
-| `content/config-panel.js` | `window.__afConfig` | Shadow DOM "add new entry" panel (opened via right-click or dropdown footer) + per-field saved-entries sub-list |
+| `content/icons.js` | `window.__afIcons` | Inline SVG icon set (one source for the in-page UI and the manager) |
+| `content/dropdown.js` | `window.__afDropdown` | Shadow DOM suggestion dropdown UI (first item pre-selected; footer: optional "new entry" button, keyboard hints, close) |
+| `content/config-panel.js` | `window.__afConfig` | Shadow DOM "add new entry" popover anchored to the field (opened via right-click or dropdown footer) + per-field saved-entries view |
 | `content/snippet.js` | `window.__afSnippet` | Snippet cache + trigger-token matching for text-expansion shortcuts |
 | `content/content.js` | `window.__afContent` | Orchestrator: focus/click → match → dropdown; also `input` → snippet-trigger detection → dropdown |
-| `manager/manager.html` + `manager.css` + `dom.js` + `entry-editor.js` + `snippets.js` + `backup.js` + `manager.js` | — | Standalone extension page (a tab): the only management UI. `manager.js` = state, filter chips, list, undo toast; `entry-editor.js` = inline row editor; `snippets.js` = collapsible snippet section at the top; `backup.js` = JSON export/import; `dom.js` = shared `window.__afMgr` helpers (`el`, `scopeBadge`, `showToast`) |
+| `manager/manager.html` + `manager.css` + `dom.js` + `entry-editor.js` + `snippets.js` + `backup.js` + `manager.js` | — | Standalone extension page (a tab): the only management UI. Sidebar (views: entries / snippets / backup + "filter by site" list) + main column. `manager.js` = state, views, site filter, list, undo toast; `entry-editor.js` = inline row editor; `snippets.js` = snippets view; `backup.js` = backup view (JSON export/import + stats); `dom.js` = shared `window.__afMgr` helpers (`el`, `icon`, `hydrateIcons`, `iconButton`, `toggle`, `scopeBadge`, `copyButton`, `emptyState`, `showToast`) |
+| `manager/fonts/` | — | Rubik variable font (Hebrew + Latin subsets, woff2) + `OFL.txt` license |
+| `icons/` | — | Extension icon PNGs (16/32/48/128) + `logo.svg` source |
 
-Content scripts load order (critical): `storage → selector → fill → dropdown → config-panel → snippet → content`
+Content scripts load order (critical): `storage → selector → fill → icons → dropdown → config-panel → snippet → content`
 
-Note: the manager scripts are extension-page scripts, not content scripts — they load `content/storage.js`
-via a `<script>` tag and use `__afStorage` for entries. Snippets are read/written by `manager/snippets.js` (`loadSnippets`/`saveSnippets`),
+Note: the manager scripts are extension-page scripts, not content scripts — they load `content/icons.js` and `content/storage.js`
+via `<script>` tags and use `__afStorage` for entries. Snippets are read/written by `manager/snippets.js` (`loadSnippets`/`saveSnippets`),
 `manager/backup.js` (import) and read by `snippet.js` directly (there is no snippet CRUD in `__afStorage`).
 
 ---
@@ -53,6 +59,14 @@ overwrite each other. `saveEntries` updates the cache only after `chrome.storage
 rejects, the error propagates to the caller and the cache is left unchanged (no phantom entries). A narrow
 cross-context window remains (two pages writing at the same instant).
 
+### `window.__afIcons`
+```
+svg(name, size = 16)  → string       // inline SVG markup from a constant table (safe for innerHTML)
+node(name, size = 16) → SVGElement
+```
+Names: search, plus, pencil, trash, copy, check, x, globe, site, link, pin, layers, field, zap, archive, download,
+upload, chevron, back, list, external, logo. Stroke = `currentColor`; `logo` reads `--af-logo-fg` for its glyph color.
+
 ### `window.__afSelector`
 ```
 generate(element)     → string    // best CSS selector for element
@@ -73,9 +87,11 @@ show(anchorEl, items[], onSelect, opts?)   → void
   // items: array of { name?, value } OR strings (treated as { value: s })
   // Render: name present → two-line (bold name + gray monospace value).
   //         name absent  → single-line value.
-  // onSelect receives the value string.
-  // opts.onAdd: function → adds a bottom "➕ הוסף מילוי חדש" footer button that
-  //   hides the dropdown and calls it. Omitted → no footer.
+  // onSelect receives the value string. The first item is pre-selected (Enter fills it at once).
+  // opts.onAdd: function → adds a "＋ מילוי חדש" button to the footer that
+  //   hides the dropdown and calls it. Omitted → no add button (the footer with hints/close stays).
+  // opts.highlight: string → names starting with it are rendered as a monospace trigger with
+  //   that typed prefix emphasized (snippet suggestions pass the typed token).
   // opts.suppressAutoHideOnInput: true → skip the default auto-hide-on-input
   //   behavior. Needed by callers that re-show() on every keystroke themselves
   //   (e.g. live snippet suggestions) — otherwise the dropdown closes itself
@@ -84,11 +100,12 @@ hide()                                      → void
 isVisible()                                 → boolean
 getAnchor()                                 → element | null   // currently anchored field
 ```
-Keyboard: ArrowUp/Down moves focus, Enter selects the focused item, Escape closes. Keys act only while the anchor is the
+Keyboard: ArrowUp/Down moves focus (scrolls it into view; the list scrolls past ~6 items), Enter selects the focused item
+(the first one by default), Escape closes. Mouse hover moves the same highlight. Keys act only while the anchor is the
 active element. The dropdown also closes when the anchor loses focus to anything outside the dropdown (items and the
-footer use `mousedown` + `preventDefault`, so focus stays on the field — new buttons must do the same) or when the
+footer buttons use `mousedown` + `preventDefault`, so focus stays on the field — new buttons must do the same) or when the
 anchor is removed from the DOM. For rich `contentEditable` fields the anchor is the topmost editing host, not the child
-node that was clicked. The ✕ button has `tabIndex=-1`.
+node that was clicked. The ✕ button (in the footer, after the keyboard hints) has `tabIndex=-1`.
 
 Positioning: while shown, the dropdown follows its anchor. It repositions on window `resize` and on any scroll
 (capture-phase, passive listener, coalesced into one `requestAnimationFrame`). It sits below the anchor, flips above when
@@ -99,14 +116,23 @@ or is clipped by an overflow ancestor. `hide()` removes every listener and cance
 
 ### `window.__afConfig`
 ```
-show(element) → void   // opens the "add new entry" panel for element (selector auto-generated)
+show(element) → void   // opens the "add new entry" popover for element (selector auto-generated)
 hide()        → void
 ```
-The panel also has a "show all saved entries for this field" button that opens a sub-list
-(toggle / inline edit / delete) filtered by the selector currently in the selector input. Each row shows its scope
-(🌐 global / 🌍 domain / 🔗 url) and entries that don't apply to the current page are dimmed. Inline edit sends only
-`{id, ...changed fields}` to `updateEntry` (no whole-entry echo). A "ניהול מלא ←" button sends the runtime message
-`{action:'open-manager', selector}`, which makes the background open the manager filtered to that selector.
+A popover card anchored below the field (flips above, clamped into the viewport, follows scroll/resize; centered when
+the viewport is < 420px wide or the field is out of view). A transparent overlay closes it on an outside click; the
+page is `inert` while open (focus trap). Esc closes, Enter in an input saves.
+- **Add view:** "ערך" (autofocus) and "שם לתצוגה" visible; "יופיע ב" is one `<select>`: this site (`domain`, the
+  default; hidden when the page has no hostname), this page only (`url-contains` + page URL without `#fragment`), all
+  sites (`global`), URL contains… (shows a pattern input). "מתקדם" (collapsed): field label + CSS selector with a
+  unique/not-unique badge. The field label is pre-filled from an existing entry with the same selector, otherwise
+  guessed from the page (`<label>`, `aria-label`, `placeholder`, `name`) and shown as the header subtitle.
+- **List view** ("שמורים לשדה (N)" in the footer): replaces the card content (back arrow returns, the add-view draft is
+  kept). Rows for the selector currently in the selector input: switch (enabled) / inline edit of name+value / two-step
+  delete (first click arms "למחוק?", second deletes, disarms after 3s — no `confirm()`). Each row shows its scope
+  (globe / site / link icon) and rows that don't apply to the current page are dimmed. Inline edit sends only
+  `{id, ...changed fields}` to `updateEntry`. "פתיחה במנהל" sends the runtime message
+  `{action:'open-manager', selector}`, which makes the background open the manager filtered to that selector.
 
 ### `window.__afContent`
 ```
@@ -165,7 +191,7 @@ flattened into one entry per option (string options become `{ name: '', value }`
   { "id": "s_1716xxx_abc", "trigger": "@TZ", "value": "123456789", "created": 1716000000 }
 ]
 ```
-Global text-expansion shortcuts (no per-site/per-field targeting). Add / edit (inline) / delete only in the manager's collapsible snippet section (open/closed state persisted in `chrome.storage.local` key `af_ui_snippets_open`). While typing in any editable field, `content.js#trySnippet` (bound to a capture-phase `input` listener) reads the token ending at the cursor via `__afSnippet.getToken`, finds triggers that start with it via `__afSnippet.findMatches` (case-sensitive), and shows the dropdown (live-updating per keystroke via `opts.suppressAutoHideOnInput`). Selecting an item calls `__afFill.replaceTextBeforeCursor(el, token, value)`, replacing only the typed token — not the whole field.
+Global text-expansion shortcuts (no per-site/per-field targeting). Add / edit (inline) / delete only in the manager's "קיצורי טקסט" view. (The old `af_ui_snippets_open` key from v1.4 is no longer read or written.) While typing in any editable field, `content.js#trySnippet` (bound to a capture-phase `input` listener) reads the token ending at the cursor via `__afSnippet.getToken`, finds triggers that start with it via `__afSnippet.findMatches` (case-sensitive), and shows the dropdown (live-updating per keystroke via `opts.suppressAutoHideOnInput`). The dropdown gets `opts.highlight = token`, so the typed part of each trigger is emphasized. Selecting an item calls `__afFill.replaceTextBeforeCursor(el, token, value)`, replacing only the typed token — not the whole field.
 
 ---
 
@@ -176,9 +202,9 @@ Global text-expansion shortcuts (no per-site/per-field targeting). Add / edit (i
 
 ## How It Works
 
-1. **Configure**: right-click any text field → "⚡ AutoFill: הגדר אפשרויות לשדה זה" → config panel opens (or use the "➕ הוסף מילוי חדש" button in an open dropdown)
-2. **Use**: focus OR click a configured field → dropdown appears → click option → field filled
-3. **Manage**: click the toolbar icon → the manager tab opens (or the existing one is focused). From a normal page (http/https/file) it opens pre-filtered to that site (current hostname + global entries). Other ways in: the panel's "ניהול מלא ←" button (filtered to that selector). Manager features: filter chips (all / global / current site / by-domain select) and a selector-filter pill; inline row editing (no modal); delete with an undo toast (no `confirm()`); JSON export/import; collapsible snippet editor at the top. Editing sends only `{id}` + the form fields (selector, fieldLabel, name, value, matchType, matchValue) to `updateEntry`, so `enabled`/`created` changed elsewhere are never overwritten; if the entry was deleted elsewhere meanwhile, the inline editor just closes (nothing is re-created).
+1. **Configure**: right-click any text field → "AutoFill: הגדר אפשרויות לשדה זה" → the add-entry popover opens next to the field (or use the "מילוי חדש" button in an open dropdown's footer)
+2. **Use**: focus OR click a configured field → dropdown appears (first option pre-selected) → click an option or press Enter → field filled
+3. **Manage**: click the toolbar icon → the manager tab opens (or the existing one is focused). From a normal page (http/https/file) it opens pre-filtered to that site (current hostname + global entries). Other ways in: the popover's "פתיחה במנהל" button (filtered to that selector). Manager features: sidebar with three views (מילויים / קיצורי טקסט / גיבוי, with counts) and, on the entries view, a "סינון לפי אתר" list (הכל / הדף הנוכחי / כל האתרים / each domain / כתובות מותאמות, with counts) plus a selector-filter pill; search; list grouped by field (group title = fieldLabel, selector shown on hover); per row: enabled switch, name/value, scope pill, and hover actions copy-value / edit / delete; inline row editing (no modal); delete with an undo toast (no `confirm()`); "מילוי חדש" pre-fills the selector (selector filter) and the scope (domain/current-page filter → that domain); empty states; backup view with JSON export/import and counts. Under 820px wide the sidebar becomes a top bar with horizontally scrolling nav and site chips. Editing sends only `{id}` + the form fields (selector, fieldLabel, name, value, matchType, matchValue) to `updateEntry`, so `enabled`/`created` changed elsewhere are never overwritten; if the entry was deleted elsewhere meanwhile, the inline editor just closes (nothing is re-created).
 
 **Manager URL hash contract** (set by `background.js#openManager`; the manager reads it on load and on `hashchange`, so re-clicking the icon on another site re-filters an already-open manager tab): `manager.html#url=<page url>&sel=<css selector>`. Both parts are optional; `url` is only passed for http/https/file pages. For the `open-manager` message the background uses `sender.url` only when `sender.frameId === 0` (`sender.tab.url` is hidden without the `tabs` permission).
 

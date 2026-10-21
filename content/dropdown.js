@@ -2,17 +2,22 @@
 // show(anchorEl, items, onSelect, opts?) → void
 //   items: array of { name?, value } objects
 //          OR array of strings (treated as { value: s })
-//   Render: name present → two-line (bold name on top, gray value below).
+//   Render: name present → two-line (name on top, muted monospace value below).
 //           name absent  → single-line value.
 //   onSelect receives the value (always a string).
+//   The first item is pre-selected, so Enter fills it right away.
 //   opts.suppressAutoHideOnInput: true → skip auto-hide on input events
 //     (needed by snippet suggestions that re-show() on every keystroke)
-//   opts.onAdd: function → adds a bottom "add new entry" button that calls it
+//   opts.onAdd: function → adds an "add new entry" button to the footer that calls it
+//   opts.highlight: string → items whose name starts with it get that prefix emphasized and
+//     the name is rendered as a monospace trigger (snippet suggestions)
+//   Footer: optional add button, keyboard hints (↑↓ / Enter / Esc) and the close button.
 //   Closes itself when the anchor loses focus to anything outside the dropdown, and its
 //   keyboard handler only acts while the anchor is document.activeElement.
 //   While shown, the dropdown follows the anchor (window resize + scroll of any ancestor,
 //   rAF-coalesced), flips above on bottom overflow, is clamped into the viewport
 //   horizontally, and hides itself if the anchor is removed or scrolled out of view.
+//   Light/dark follows prefers-color-scheme. Icons come from window.__afIcons (content/icons.js).
 // hide()                                    → void   (also removes all tracking listeners)
 // isVisible()                               → boolean
 // getAnchor()                               → element | null  — currently anchored field
@@ -21,90 +26,85 @@
   const CSS = `
     :host { all: initial; }
     .af-drop {
+      --bg: #ffffff; --fg: #18181b; --muted: #71717a; --subtle: #a1a1aa;
+      --line: rgba(24, 24, 27, .08); --hover: #f4f4f5; --kbd: #f4f4f5; --mark: #18181b;
       position: fixed;
-      background: #fff;
-      border: 1px solid #e0e0e0;
-      border-radius: 8px;
-      box-shadow: 0 4px 20px rgba(0,0,0,.15);
-      min-width: 220px;
-      max-width: 360px;
       z-index: 2147483647;
+      min-width: 288px;
+      max-width: 360px;
+      background: var(--bg);
+      color: var(--fg);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 12px 32px -8px rgba(0,0,0,.18);
       overflow: hidden;
-      font-family: system-ui, sans-serif;
+      font: 400 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
       direction: rtl;
+      text-align: right;
+      animation: af-in .12s ease-out;
     }
+    @media (prefers-color-scheme: dark) {
+      .af-drop {
+        --bg: #18181b; --fg: #fafafa; --muted: #a1a1aa; --subtle: #71717a;
+        --line: rgba(255, 255, 255, .09); --hover: #27272a; --kbd: #27272a; --mark: #fafafa;
+        box-shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 32px -8px rgba(0,0,0,.6);
+      }
+    }
+    @keyframes af-in { from { opacity: 0; transform: translateY(-2px); } }
+    @media (prefers-reduced-motion: reduce) { .af-drop { animation: none; } }
+
+    .af-list { max-height: 296px; overflow-y: auto; padding: 4px; scrollbar-width: thin; }
     .af-item {
-      padding: 8px 14px;
+      display: flex; flex-direction: column; gap: 1px;
+      padding: 7px 10px;
+      border-radius: 8px;
       cursor: pointer;
-      border-bottom: 1px solid #f2f2f2;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
       min-width: 0;
     }
-    .af-item:last-of-type { border-bottom: none; }
-    .af-item:hover, .af-item.focused {
-      background: #f0f4ff;
+    .af-item.focused { background: var(--hover); }
+    .af-name, .af-value, .af-value-only {
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    .af-name {
-      font-size: 13px;
-      font-weight: 600;
-      color: #1a1a1a;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
+    .af-name { font-size: 13px; font-weight: 500; color: var(--fg); }
+    .af-name.trigger { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 12.5px; color: var(--muted); direction: ltr; text-align: right; }
+    .af-name.trigger b { color: var(--mark); font-weight: 600; }
     .af-value {
-      font-size: 11px;
-      color: #888;
+      font-size: 12px; color: var(--muted);
       font-family: ui-monospace, "SF Mono", Consolas, monospace;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      direction: ltr; text-align: right; unicode-bidi: plaintext;
     }
-    .af-value-only {
-      font-size: 13px;
-      color: #222;
-      font-weight: 500;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .af-item:has(+ .af-footer) { border-bottom: none; }
+    .af-value-only { font-size: 13px; color: var(--fg); unicode-bidi: plaintext; }
+
     .af-footer {
-      border-top: 1px solid #e8e8e8;
+      display: flex; align-items: center; gap: 8px;
+      padding: 4px 6px 4px 4px;
+      border-top: 1px solid var(--line);
+      font-size: 11px; color: var(--subtle);
     }
-    .af-footer-btn {
-      padding: 8px 10px;
-      cursor: pointer;
-      background: #fafafa;
-      color: #4f7aff;
-      font-size: 12px;
-      text-align: center;
+    .af-add {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 4px 8px; border-radius: 6px;
+      color: var(--fg); font-weight: 500; font-size: 12px; cursor: pointer;
     }
-    .af-footer-btn:hover { background: #f0f4ff; }
+    .af-add:hover { background: var(--hover); }
+    .af-hints { display: flex; align-items: center; gap: 8px; margin-inline-start: auto; white-space: nowrap; }
+    .af-hints span { display: inline-flex; align-items: center; gap: 3px; }
+    kbd {
+      font: 500 10px/1 ui-monospace, "SF Mono", Consolas, monospace;
+      min-width: 16px; padding: 2px 4px; box-sizing: border-box; text-align: center;
+      background: var(--kbd); color: var(--muted); border-radius: 4px;
+    }
     .af-close {
-      position: absolute;
-      top: 4px;
-      left: 4px;
-      width: 20px;
-      height: 20px;
-      border: none;
-      background: transparent;
-      color: #999;
-      font-size: 14px;
-      line-height: 20px;
-      text-align: center;
-      cursor: pointer;
-      border-radius: 4px;
-      padding: 0;
-      z-index: 1;
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 22px; height: 22px; padding: 0;
+      border: none; border-radius: 6px; background: transparent;
+      color: var(--subtle); cursor: pointer;
     }
-    .af-close:hover {
-      background: #eee;
-      color: #333;
-    }
+    .af-close:hover { background: var(--hover); color: var(--fg); }
+    svg { display: block; flex-shrink: 0; }
   `;
+
+  const icon = (name, size) => window.__afIcons.node(name, size);
 
   let host = null;
   let shadow = null;
@@ -140,17 +140,12 @@
 
     isolateShadow(dropdown);
 
-    const closeBtn = document.createElement('button');
-    closeBtn.className = 'af-close';
-    closeBtn.textContent = '✕';
-    closeBtn.tabIndex = -1; // keep Tab from the field going to the dropdown (it lives at the end of <body>)
-    closeBtn.addEventListener('mousedown', e => {
-      e.preventDefault();
-      hide();
-    });
-    dropdown.appendChild(closeBtn);
+    const list = document.createElement('div');
+    list.className = 'af-list';
+    dropdown.appendChild(list);
 
     allItems = [];
+    const highlight = opts.highlight || '';
 
     options.forEach((raw) => {
       const opt = typeof raw === 'string' ? { name: '', value: raw } : { name: raw.name || '', value: raw.value };
@@ -161,7 +156,14 @@
       if (opt.name) {
         const nameEl = document.createElement('div');
         nameEl.className = 'af-name';
-        nameEl.textContent = opt.name;
+        if (highlight && opt.name.startsWith(highlight)) {
+          nameEl.classList.add('trigger');
+          const typed = document.createElement('b');
+          typed.textContent = highlight;
+          nameEl.append(typed, opt.name.slice(highlight.length));
+        } else {
+          nameEl.textContent = opt.name;
+        }
         const valueEl = document.createElement('div');
         valueEl.className = 'af-value';
         valueEl.textContent = opt.value;
@@ -179,24 +181,49 @@
         onSelect(opt.value);
         hide();
       });
-      dropdown.appendChild(item);
+      item.addEventListener('mousemove', () => {
+        const idx = allItems.indexOf(item);
+        if (idx !== focusedIdx) setFocus(idx, false);
+      });
+      list.appendChild(item);
       allItems.push(item);
     });
 
+    // Footer buttons are divs/tabIndex=-1 + mousedown/preventDefault: focus must stay on the field.
+    const footer = document.createElement('div');
+    footer.className = 'af-footer';
     if (opts.onAdd) {
-      const footer = document.createElement('div');
-      footer.className = 'af-footer';
       const addBtn = document.createElement('div');
-      addBtn.className = 'af-footer-btn';
-      addBtn.textContent = '➕ הוסף מילוי חדש';
+      addBtn.className = 'af-add';
+      addBtn.append(icon('plus', 14), 'מילוי חדש');
       addBtn.addEventListener('mousedown', e => {
         e.preventDefault();
         hide();
         opts.onAdd();
       });
       footer.appendChild(addBtn);
-      dropdown.appendChild(footer);
     }
+    const hints = document.createElement('div');
+    hints.className = 'af-hints';
+    [['↑↓', 'ניווט'], ['↵', 'מילוי'], ['esc', 'סגירה']].forEach(([key, text]) => {
+      const hint = document.createElement('span');
+      const kbd = document.createElement('kbd');
+      kbd.textContent = key;
+      hint.append(kbd, text);
+      hints.appendChild(hint);
+    });
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'af-close';
+    closeBtn.title = 'סגירה';
+    closeBtn.appendChild(icon('x', 14));
+    closeBtn.tabIndex = -1; // keep Tab from the field going to the dropdown (it lives at the end of <body>)
+    closeBtn.addEventListener('mousedown', e => {
+      e.preventDefault();
+      hide();
+    });
+    footer.append(hints, closeBtn);
+    dropdown.appendChild(footer);
+    setFocus(0, false);
 
     document.body.appendChild(host);
     positionDropdown();
@@ -327,10 +354,11 @@
     }
   }
 
-  function setFocus(idx) {
+  function setFocus(idx, scroll = true) {
     allItems.forEach(i => i.classList.remove('focused'));
     focusedIdx = Math.max(0, Math.min(idx, allItems.length - 1));
     allItems[focusedIdx]?.classList.add('focused');
+    if (scroll) allItems[focusedIdx]?.scrollIntoView({ block: 'nearest' });
   }
 
   function getAnchor() { return anchorEl; }

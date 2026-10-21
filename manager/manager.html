@@ -2,42 +2,106 @@
 <html dir="rtl" lang="he">
 <head>
 <meta charset="UTF-8">
-<title>ניהול AutoFill</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>AutoFill · ניהול</title>
+<link rel="icon" href="../icons/icon-32.png">
 <link rel="stylesheet" href="manager.css">
 </head>
 <body>
-  <div class="af-header">
-    <div class="af-title">🗂 ניהול מילויים אוטומטיים</div>
-    <input type="text" id="af-search" class="af-search" placeholder="🔍 חיפוש לפי שם, ערך, שדה או URL...">
-    <div class="af-header-actions">
-      <button class="af-btn" id="af-export" title="שמירת כל המילויים והקיצורים לקובץ">⬇ ייצוא</button>
-      <button class="af-btn" id="af-import" title="טעינת קובץ גיבוי (ממזג, לא מוחק)">⬆ ייבוא</button>
-      <input type="file" id="af-import-file" accept="application/json,.json" hidden>
-    </div>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-logo" data-icon="logo" data-size="22"></span>
+        <span class="brand-name">AutoFill</span>
+        <span class="brand-ver" id="af-version"></span>
+      </div>
+
+      <nav class="nav" id="af-nav" aria-label="ניווט">
+        <button class="nav-item" data-view="entries" type="button">
+          <span data-icon="field"></span><span class="nav-text">מילויים</span><span class="nav-count" id="af-nav-entries"></span>
+        </button>
+        <button class="nav-item" data-view="snippets" type="button">
+          <span data-icon="zap"></span><span class="nav-text">קיצורי טקסט</span><span class="nav-count" id="af-nav-snippets"></span>
+        </button>
+        <button class="nav-item" data-view="backup" type="button">
+          <span data-icon="archive"></span><span class="nav-text">גיבוי</span>
+        </button>
+      </nav>
+
+      <div class="side-section" id="af-sites-section">
+        <div class="side-title">סינון לפי אתר</div>
+        <div class="sites" id="af-sites"></div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <!-- Entries -->
+      <section class="view" id="view-entries">
+        <header class="view-head">
+          <div class="view-title">
+            <h1>מילויים</h1>
+            <p class="view-desc" id="af-count"></p>
+          </div>
+          <div class="head-actions">
+            <label class="search">
+              <span data-icon="search"></span>
+              <input type="search" id="af-search" placeholder="חיפוש לפי שם, ערך, שדה או אתר" autocomplete="off" spellcheck="false">
+            </label>
+            <button class="btn primary" id="af-add-btn" type="button"><span data-icon="plus"></span>מילוי חדש</button>
+          </div>
+        </header>
+        <div id="af-sel-filter"></div>
+        <div id="af-new-slot"></div>
+        <div id="af-body"></div>
+      </section>
+
+      <!-- Snippets -->
+      <section class="view" id="view-snippets" hidden>
+        <header class="view-head">
+          <div class="view-title">
+            <h1>קיצורי טקסט</h1>
+            <p class="view-desc">מקלידים קיצור (למשל <code>@TZ</code>) בכל שדה, וההצעה מופיעה מיד מתחת. בחירה בה מחליפה רק את הקיצור.</p>
+          </div>
+        </header>
+        <form class="card snippet-add" id="af-snippet-form" autocomplete="off">
+          <input type="text" class="input mono" id="af-snip-trigger" placeholder="@TZ" aria-label="קיצור" title="הקיצור שמקלידים בשדה" dir="ltr" spellcheck="false">
+          <input type="text" class="input" id="af-snip-value" placeholder="הטקסט שיוכנס במקום הקיצור" aria-label="ערך" dir="auto" spellcheck="false">
+          <button type="submit" class="btn primary"><span data-icon="plus"></span>הוספה</button>
+        </form>
+        <div id="af-snippet-list"></div>
+      </section>
+
+      <!-- Backup -->
+      <section class="view" id="view-backup" hidden>
+        <header class="view-head">
+          <div class="view-title">
+            <h1>גיבוי</h1>
+            <p class="view-desc" id="af-backup-stats"></p>
+          </div>
+        </header>
+        <div class="backup-grid">
+          <div class="card backup-card">
+            <span class="backup-icon" data-icon="download" data-size="20"></span>
+            <h2>ייצוא לקובץ</h2>
+            <p>שומר את כל המילויים והקיצורים לקובץ JSON במחשב.</p>
+            <button class="btn secondary" id="af-export" type="button">ייצוא</button>
+          </div>
+          <div class="card backup-card">
+            <span class="backup-icon" data-icon="upload" data-size="20"></span>
+            <h2>ייבוא מקובץ</h2>
+            <p>טוען קובץ גיבוי וממזג אותו עם הקיים. שום דבר לא נמחק, ופריטים שכבר קיימים מדולגים.</p>
+            <button class="btn secondary" id="af-import" type="button">בחירת קובץ…</button>
+            <input type="file" id="af-import-file" accept="application/json,.json" hidden>
+          </div>
+        </div>
+      </section>
+    </main>
   </div>
 
-  <div class="af-main">
-    <details class="af-section" id="af-snippets-section">
-      <summary>✂️ קיצורי טקסט <span class="af-section-count" id="af-snip-count"></span></summary>
-      <div id="af-snippet-list"></div>
-      <form class="af-snippet-add" id="af-snippet-form">
-        <input type="text" id="af-snip-trigger" placeholder="קיצור (למשל @TZ)" dir="ltr" autocomplete="off">
-        <input type="text" id="af-snip-value" placeholder="ערך למילוי" dir="ltr" autocomplete="off">
-        <button type="submit" class="af-btn primary">+ הוסף</button>
-      </form>
-    </details>
+  <div class="toast-host" id="af-toast-host" aria-live="polite"></div>
 
-    <div class="af-toolbar">
-      <div class="af-chips" id="af-chips"></div>
-      <span class="af-count" id="af-count"></span>
-      <button class="af-btn primary af-add-btn" id="af-add-btn">+ הוסף מילוי חדש</button>
-    </div>
-    <div id="af-sel-filter"></div>
-    <div id="af-new-slot"></div>
-    <div class="af-body" id="af-body"></div>
-  </div>
-
-  <div class="af-toast-host" id="af-toast-host"></div>
+  <script src="../content/icons.js"></script>
   <script src="../content/storage.js"></script>
   <script src="dom.js"></script>
   <script src="entry-editor.js"></script>

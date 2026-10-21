@@ -2,6 +2,15 @@
 
 See [AGENT_CONTEXT.md](AGENT_CONTEXT.md) for current state and [ARCHITECTURE.md](ARCHITECTURE.md) for design.
 
+## v1.5.0 — 2026-10-21 — UI redesign
+Full spec, decisions and per-file notes: [docs/REDESIGN-v1.5.md](docs/REDESIGN-v1.5.md).
+- **Changed (all UI):** one minimal neutral design system — black/white accent, 1px lines, light/dark via `prefers-color-scheme`; emoji replaced by inline SVG icons from the new [content/icons.js](content/icons.js) (`window.__afIcons`, content-script load order now `… fill → icons → dropdown …`).
+- **Changed (dropdown):** new look; first item pre-selected (Enter fills it); hover and keyboard share one highlight; list scrolls past ~6 items; footer with "מילוי חדש", keyboard hints (↑↓ / ↵ / esc) and the close button; new `opts.highlight` — snippet suggestions emphasize the typed part of the trigger.
+- **Changed (add-entry panel):** now a popover anchored to the field (centered on narrow viewports). Visible: value + display name; scope is one select defaulting to **this site** (was: all sites); field label + selector (with unique badge) under "מתקדם". Field label is guessed from the page when no entry exists for the selector. Saved-entries sub-list became a view inside the popover (draft kept when going back); delete is two-step instead of `confirm()`; "ניהול מלא ←" → "פתיחה במנהל".
+- **Changed (manager):** sidebar layout — views מילויים / קיצורי טקסט / גיבוי (with counts) and a "סינון לפי אתר" list replacing the filter chips (adds a "כתובות מותאמות" filter for URL-contains entries); groups are cards titled by field label (selector on hover); row actions on hover; new **copy value** button (entries and snippets); empty states; backup view with stats; "מילוי חדש" pre-fills the scope from the active domain/page filter; bundled Rubik font; responsive below 820px.
+- **Changed:** new extension icon in `icons/` (16/32/48/128 + `logo.svg`); `icon.png` removed. Context-menu title lost its ⚡.
+- **Removed:** `af_ui_snippets_open` (snippets are a view now, not a collapsible section).
+
 ## v1.4.0 — 2026-10-20
 - **Added (manager):** inline editing of existing snippets (✏️ → trigger/value inputs, Enter/Esc, saves by id from fresh storage).
 - **Added (panel):** "↩ בטל עריכה" button while editing a row in the saved-entries sub-list; new fixed scope option "הדף הזה בלבד (ה-URL המלא)" in the add-entry form (stored as `url-contains` with the page URL minus `#fragment`, so no schema change — it also matches longer URLs containing it).

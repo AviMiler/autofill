@@ -68,6 +68,16 @@
     showToast(`יובאו ${addedEntries} מילויים ו-${newSnippets.length} קיצורים`);
   }
 
+  async function renderStats() {
+    const [entries, snippets] = await Promise.all([loadEntries(), loadSnippets()]);
+    document.getElementById('af-backup-stats').textContent =
+      `כרגע שמורים ${entries.length} מילויים ו-${snippets.length} קיצורי טקסט. הכל נשמר מקומית בדפדפן בלבד.`;
+  }
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && (changes.af_entries || changes.af_snippets)) renderStats().catch(() => {});
+  });
+  renderStats().catch(err => console.error('[backup] stats failed:', err));
+
   const fileInput = document.getElementById('af-import-file');
   document.getElementById('af-export').addEventListener('click', () => {
     exportAll().catch(err => console.error('[backup] export failed:', err));

@@ -1,96 +1,191 @@
 // PUBLIC API: window.__afConfig
-// show(element) → void   — opens "add new entry" panel for element
+// show(element) → void   — opens the "add new entry" popover anchored to element
 // hide()        → void
+//
+// Layout: a card anchored below the field (flips above, clamped into the viewport; centered when the
+// viewport is narrow or the field is out of view). A transparent full-page overlay catches outside clicks
+// (→ close), and the page is made inert while it is open (focus trap).
+// Views: "add" (value + display name visible; scope as one select defaulting to "this site";
+//        field label + selector under a collapsed "מתקדם") and "list" (saved entries for the
+//        selector in the selector input: toggle / inline edit / two-step delete / open in manager).
+// Light/dark follows prefers-color-scheme. Icons: window.__afIcons.
 
 (() => {
   const CSS = `
     :host { all: initial; }
     .af-overlay {
       position: fixed; inset: 0;
-      background: rgba(0,0,0,.4);
       z-index: 2147483646;
-      display: flex; align-items: center; justify-content: center;
-      font-family: system-ui, sans-serif;
+      font: 400 13px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
     }
-    .af-panel {
-      background: #fff;
-      border-radius: 12px;
-      box-shadow: 0 8px 40px rgba(0,0,0,.25);
-      width: 420px; max-width: 95vw;
-      max-height: 90vh;
+    .af-pop {
+      --bg: #ffffff; --fg: #18181b; --muted: #71717a; --subtle: #a1a1aa;
+      --line: rgba(24, 24, 27, .09); --field: #ffffff; --field-line: #e4e4e7; --hover: #f4f4f5;
+      --accent: #18181b; --accent-fg: #ffffff; --ring: rgba(24, 24, 27, .12);
+      --ok: #15803d; --warn: #b45309; --danger: #dc2626; --danger-bg: #fef2f2;
+      position: fixed;
+      width: 344px; max-width: calc(100vw - 16px);
+      max-height: calc(100vh - 16px);
       overflow-y: auto;
-      padding: 24px;
-      direction: rtl;
+      box-sizing: border-box;
+      background: var(--bg); color: var(--fg);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 16px 40px -8px rgba(0,0,0,.22);
+      direction: rtl; text-align: right;
+      animation: af-in .14s ease-out;
     }
-    h2 { margin: 0 0 18px; font-size: 16px; color: #111; }
-    label { display: block; font-size: 12px; color: #555; margin-bottom: 4px; margin-top: 14px; }
-    input[type=text] {
-      width: 100%; box-sizing: border-box;
-      border: 1px solid #ddd; border-radius: 6px;
-      padding: 7px 10px; font-size: 13px;
-      outline: none; transition: border-color .15s;
+    @media (prefers-color-scheme: dark) {
+      .af-pop {
+        --bg: #18181b; --fg: #fafafa; --muted: #a1a1aa; --subtle: #71717a;
+        --line: rgba(255, 255, 255, .09); --field: #0f0f11; --field-line: #2e2e33; --hover: #27272a;
+        --accent: #fafafa; --accent-fg: #18181b; --ring: rgba(250, 250, 250, .14);
+        --ok: #4ade80; --warn: #fbbf24; --danger: #f87171; --danger-bg: rgba(248, 113, 113, .12);
+        box-shadow: 0 1px 2px rgba(0,0,0,.3), 0 16px 40px -8px rgba(0,0,0,.7);
+      }
     }
-    input[type=text]:focus { border-color: #4f7aff; }
-    .af-sel-row { display: flex; gap: 6px; align-items: center; }
-    .af-sel-row input { flex: 1; }
-    .af-badge {
-      font-size: 11px; padding: 2px 6px; border-radius: 10px; white-space: nowrap;
-    }
-    .af-badge.ok  { background: #e6f9ee; color: #1a7a3c; }
-    .af-badge.warn { background: #fff7e0; color: #a06000; }
-    .af-scope { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; font-size: 13px; }
-    .af-scope label { margin: 0; display: flex; align-items: center; gap: 4px; color: #333; }
-    .af-url-input { margin: 6px 0 0 22px; width: calc(100% - 22px); }
-    .af-url-input[disabled] { background: #f5f5f5; color: #aaa; }
-    .af-hint { font-size: 11px; color: #888; margin: 4px 0 0 22px; }
-    .af-actions { display: flex; gap: 8px; margin-top: 22px; }
-    .af-btn {
-      padding: 8px 18px; border-radius: 6px; font-size: 13px;
-      cursor: pointer; border: none; font-family: inherit;
-    }
-    .af-btn-save  { background: #4f7aff; color: #fff; flex: 1; }
-    .af-btn-save:hover  { background: #3a63e0; }
-    .af-btn-cancel { background: #f2f2f2; color: #444; }
-    .af-btn-cancel:hover { background: #e5e5e5; }
-    .af-btn-manage { background: #fff; color: #4f7aff; border: 1px solid #4f7aff; }
-    .af-btn-manage:hover { background: #f0f4ff; }
+    @keyframes af-in { from { opacity: 0; transform: translateY(-3px) scale(.99); } }
+    @media (prefers-reduced-motion: reduce) { .af-pop { animation: none; } }
+    *, *::before, *::after { box-sizing: border-box; }
+    svg { display: block; flex-shrink: 0; }
+    [hidden] { display: none !important; }
+
+    .af-head { display: flex; align-items: flex-start; gap: 8px; padding: 14px 16px 4px; }
+    .af-head-text { flex: 1; min-width: 0; }
+    .af-title { font-size: 14px; font-weight: 600; margin: 0; }
     .af-sub {
-      position: fixed; inset: 0; background: rgba(0,0,0,.35);
-      display: flex; align-items: center; justify-content: center;
+      margin-top: 2px; font-size: 12px; color: var(--muted);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    .af-sub-panel {
-      background: #fff; border-radius: 12px; width: 460px; max-width: 95vw;
-      max-height: 80vh; overflow-y: auto; padding: 20px; direction: rtl;
-      box-shadow: 0 8px 40px rgba(0,0,0,.3);
+    .af-sub.mono { font-family: ui-monospace, "SF Mono", Consolas, monospace; direction: ltr; text-align: right; }
+    .af-body { padding: 8px 16px 4px; }
+
+    .af-label { display: flex; align-items: baseline; gap: 6px; font-size: 12px; font-weight: 500; color: var(--muted); margin: 10px 0 5px; }
+    .af-label .opt { font-weight: 400; color: var(--subtle); }
+    input[type=text], select {
+      width: 100%; height: 34px; padding: 0 10px;
+      border: 1px solid var(--field-line); border-radius: 8px;
+      background: var(--field); color: var(--fg);
+      font: inherit; font-size: 13px; outline: none;
+      transition: border-color .12s, box-shadow .12s;
     }
-    .af-sub-panel h2 { margin: 0 0 4px; font-size: 15px; }
-    .af-sub-sel { font-family: ui-monospace, monospace; font-size: 11px; color: #999; margin-bottom: 14px; word-break: break-all; }
-    .af-row {
-      display: flex; align-items: center; gap: 8px;
-      padding: 8px 10px; border: 1px solid #eee; border-radius: 8px; margin-bottom: 6px;
+    input[type=text]:focus, select:focus { border-color: var(--muted); box-shadow: 0 0 0 3px var(--ring); }
+    input[type=text]::placeholder { color: var(--subtle); }
+    select { appearance: none; padding-inline-start: 30px; cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: left 10px center; }
+    .mono { font-family: ui-monospace, "SF Mono", Consolas, monospace; }
+    .ltr { direction: ltr; text-align: left; }
+    .af-hint { font-size: 11.5px; color: var(--subtle); margin-top: 5px; overflow-wrap: anywhere; }
+    .af-hint.ltr { text-align: right; }
+
+    details { margin-top: 12px; border-top: 1px solid var(--line); }
+    summary {
+      display: flex; align-items: center; gap: 6px;
+      padding: 10px 0 2px; list-style: none; cursor: pointer;
+      font-size: 12px; font-weight: 500; color: var(--muted);
     }
+    summary::-webkit-details-marker { display: none; }
+    summary svg { transition: transform .15s; }
+    details:not([open]) summary svg { transform: rotate(90deg); }
+    .af-sel-row { position: relative; }
+    .af-sel-row input { padding-inline-start: 74px; }
+    .af-badge {
+      position: absolute; left: 6px; top: 50%; transform: translateY(-50%);
+      display: inline-flex; align-items: center; gap: 3px;
+      font-size: 11px; font-weight: 500; padding: 2px 6px; border-radius: 6px; background: var(--hover);
+    }
+    .af-badge.ok { color: var(--ok); }
+    .af-badge.warn { color: var(--warn); }
+
+    .af-foot { display: flex; align-items: center; gap: 6px; padding: 14px 16px 14px; }
+    .af-spacer { flex: 1; }
+    button { font: inherit; }
+    .af-btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      height: 32px; padding: 0 12px; border-radius: 8px;
+      border: 1px solid transparent; background: transparent; color: var(--fg);
+      font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap;
+      transition: background .12s, border-color .12s, opacity .12s;
+    }
+    .af-btn:focus-visible, .af-icon:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ring); }
+    .af-btn.primary { background: var(--accent); color: var(--accent-fg); }
+    .af-btn.primary:hover { opacity: .88; }
+    .af-btn.secondary { border-color: var(--field-line); }
+    .af-btn.secondary:hover, .af-btn.ghost:hover { background: var(--hover); }
+    .af-btn.ghost { color: var(--muted); padding: 0 8px; }
+    .af-btn.ghost:hover { color: var(--fg); }
+    .af-count { color: var(--subtle); font-weight: 400; }
+    .af-icon {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 28px; height: 28px; padding: 0; flex-shrink: 0;
+      border: none; border-radius: 7px; background: transparent; color: var(--subtle); cursor: pointer;
+      transition: background .12s, color .12s;
+    }
+    .af-icon:hover { background: var(--hover); color: var(--fg); }
+    .af-icon.danger:hover { color: var(--danger); background: var(--danger-bg); }
+    .af-icon.confirm { width: auto; padding: 0 8px; gap: 4px; font-size: 12px; font-weight: 500; color: var(--danger); background: var(--danger-bg); }
+
+    .af-rows { padding: 6px 8px 0; }
+    .af-row { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 10px; }
+    .af-row:hover { background: var(--hover); }
+    .af-row.off-page .af-row-info { opacity: .5; }
+    .af-row.disabled .af-row-name, .af-row.disabled .af-row-val { opacity: .45; }
     .af-row-info { flex: 1; min-width: 0; }
-    .af-row-name { font-size: 13px; font-weight: 600; }
-    .af-row-val { font-size: 12px; color: #888; font-family: ui-monospace, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .af-row input[type=text] { margin-bottom: 4px; }
-    .af-icon { border: none; background: none; cursor: pointer; font-size: 14px; padding: 4px 6px; border-radius: 5px; color: #999; }
-    .af-icon:hover { background: #f0f0f0; color: #222; }
-    .af-row.off-page { opacity: .5; }
-    .af-row-scope { font-size: 11px; color: #666; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .af-row-scope.here { color: #1a7a3c; }
-    .af-sub-actions { display: flex; gap: 8px; margin-top: 12px; align-items: center; }
-    .af-sub-link { margin-right: auto; background: none; border: none; color: #4f7aff; cursor: pointer; font-size: 13px; font-family: inherit; }
-    .af-sub-link:hover { text-decoration: underline; }
-    .af-empty { text-align: center; color: #aaa; font-size: 13px; padding: 24px 0; }
+    .af-row-name, .af-row-val, .af-row-scope { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .af-row-name { font-size: 13px; font-weight: 500; }
+    .af-row-val { font-size: 12px; color: var(--muted); font-family: ui-monospace, "SF Mono", Consolas, monospace; unicode-bidi: plaintext; }
+    .af-row-scope { display: flex; align-items: center; gap: 4px; margin-top: 2px; font-size: 11.5px; color: var(--subtle); }
+    .af-row-scope.here { color: var(--muted); }
+    .af-row-edit { display: flex; flex-direction: column; gap: 4px; }
+    .af-row-edit input { height: 30px; }
+    .af-row-actions { display: flex; gap: 2px; }
+    .af-empty { text-align: center; color: var(--subtle); font-size: 13px; padding: 28px 0 18px; }
+
+    .af-switch { position: relative; width: 30px; height: 18px; flex-shrink: 0; }
+    .af-switch input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; z-index: 1; }
+    .af-switch span { position: absolute; inset: 0; border-radius: 9px; background: var(--field-line); transition: background .15s; }
+    .af-switch span::after {
+      content: ''; position: absolute; top: 2px; right: 2px; width: 14px; height: 14px;
+      border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: transform .15s;
+    }
+    .af-switch input:checked + span { background: var(--accent); }
+    .af-switch input:checked + span::after { transform: translateX(-12px); background: var(--bg); }
+    .af-switch input:focus-visible + span { box-shadow: 0 0 0 3px var(--ring); }
   `;
 
+  const POP_GAP = 6;
+  const NARROW_VIEWPORT = 420;
+
   let host = null;
+  let pop = null;
+  let anchorEl = null;
   let lastPanelFocus = null;
   let focusTrapHandler = null;
   let inertedSiblings = [];
+  let rafId = 0;
+
+  const icon = (name, size) => window.__afIcons.node(name, size);
+
+  function h(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text != null) node.textContent = text;
+    return node;
+  }
+
+  function button(className, iconName, text, title) {
+    const b = h('button', className);
+    b.type = 'button';
+    if (iconName) b.appendChild(icon(iconName, 15));
+    if (text) b.append(text);
+    if (title) { b.title = title; b.setAttribute('aria-label', title); }
+    return b;
+  }
 
   function show(element) {
     hide();
+    anchorEl = element || null;
 
     host = document.createElement('div');
     const shadow = host.attachShadow({ mode: 'open' });
@@ -99,124 +194,36 @@
     style.textContent = CSS;
     shadow.appendChild(style);
 
-    const overlay = document.createElement('div');
-    overlay.className = 'af-overlay';
+    const overlay = h('div', 'af-overlay');
     shadow.appendChild(overlay);
 
     ['mousedown', 'pointerdown', 'mouseup', 'click', 'focusin', 'focusout', 'keydown', 'keyup', 'keypress', 'input']
       .forEach(ev => overlay.addEventListener(ev, e => e.stopPropagation()));
 
     overlay.addEventListener('focusin', e => {
-      const inputEl = e.composedPath().find(n => n.tagName === 'INPUT');
-      if (inputEl) lastPanelFocus = inputEl;
+      const target = e.composedPath().find(n => ['INPUT', 'SELECT', 'BUTTON'].includes(n.tagName));
+      if (target) lastPanelFocus = target;
     });
-
-    const panel = document.createElement('div');
-    panel.className = 'af-panel';
-    overlay.appendChild(panel);
-
-    const hostname = location.hostname;
-    // Full URL without #fragment (often transient SPA state). Stored as a 'url-contains' scope.
-    const pageUrl = location.href.split('#')[0];
-    const generatedSel = element ? window.__afSelector.generate(element) : '';
-
-    panel.innerHTML = `
-      <h2>➕ הוסף מילוי אוטומטי</h2>
-
-      <button class="af-btn af-btn-manage" id="af-manage" style="width:100%">📋 הצג את כל המילויים השמורים לשדה זה</button>
-
-      <label>שם השדה (לתצוגה בלבד)</label>
-      <input type="text" id="af-fieldLabel" placeholder="למשל: אימייל, שם מלא">
-
-      <label>CSS Selector</label>
-      <div class="af-sel-row">
-        <input type="text" id="af-selector" value="${escHtml(generatedSel)}">
-        <span id="af-sel-badge" class="af-badge"></span>
-      </div>
-
-      <label>שם האפשרות (אופציונלי)</label>
-      <input type="text" id="af-name" placeholder="למשל: אישי, עבודה">
-
-      <label>ערך למילוי</label>
-      <input type="text" id="af-value" placeholder="הערך שימולא בשדה...">
-
-      <label>הופעל כאשר</label>
-      <div class="af-scope">
-        <label><input type="radio" name="af-scope" value="global" checked> כל האתרים</label>
-        <label><input type="radio" name="af-scope" value="domain"> רק ב-${escHtml(hostname)}</label>
-        <label><input type="radio" name="af-scope" value="url-full"> הדף הזה בלבד (ה-URL המלא)</label>
-        <div class="af-hint" dir="ltr" style="text-align:left;word-break:break-all">${escHtml(pageUrl)}</div>
-        <label><input type="radio" name="af-scope" value="url-contains"> ה-URL מכיל את:</label>
-        <input type="text" id="af-url-pattern" class="af-url-input"
-          placeholder="למשל: /admin/ או ?lang=he">
-        <div class="af-hint">מתאים לכל דף שה-URL שלו מכיל את הטקסט (case-sensitive)</div>
-      </div>
-
-      <div class="af-actions">
-        <button class="af-btn af-btn-cancel" id="af-cancel">בטל</button>
-        <button class="af-btn af-btn-save" id="af-save">שמור</button>
-      </div>
-    `;
-
-    // Pre-fill fieldLabel from existing entries for this selector
-    window.__afStorage.loadEntries().then(entries => {
-      const existing = entries.find(e => e.selector === generatedSel);
-      if (existing?.fieldLabel) {
-        panel.querySelector('#af-fieldLabel').value = existing.fieldLabel;
-      }
-    });
-
-    const selInput = panel.querySelector('#af-selector');
-    const badge = panel.querySelector('#af-sel-badge');
-    updateBadge(selInput.value, badge);
-    selInput.addEventListener('input', () => updateBadge(selInput.value, badge));
-
-    const urlInput = panel.querySelector('#af-url-pattern');
-    const syncUrlInput = (userTriggered) => {
-      const checked = panel.querySelector('input[name="af-scope"]:checked')?.value;
-      urlInput.disabled = checked !== 'url-contains';
-      if (userTriggered && checked === 'url-contains') urlInput.focus();
-    };
-    panel.querySelectorAll('input[name="af-scope"]').forEach(r =>
-      r.addEventListener('change', () => syncUrlInput(true))
-    );
-    syncUrlInput(false);
-
     overlay.addEventListener('mousedown', e => { if (e.target === overlay) hide(); });
-    panel.querySelector('#af-cancel').addEventListener('click', hide);
-    panel.querySelector('#af-manage').addEventListener('click', () => {
-      openFieldList(overlay, selInput.value.trim());
-    });
 
-    panel.querySelector('#af-save').addEventListener('click', async () => {
-      const selector = selInput.value.trim();
-      const value = panel.querySelector('#af-value').value.trim();
-      if (!selector) { selInput.focus(); return; }
-      if (!value) { panel.querySelector('#af-value').focus(); return; }
+    pop = h('div', 'af-pop');
+    pop.setAttribute('role', 'dialog');
+    pop.setAttribute('aria-modal', 'true');
+    overlay.appendChild(pop);
 
-      const matchType = panel.querySelector('input[name="af-scope"]:checked')?.value || 'global';
-      let matchValue = '';
-      if (matchType === 'domain') matchValue = hostname;
-      if (matchType === 'url-full') matchValue = pageUrl;
-      if (matchType === 'url-contains') {
-        matchValue = urlInput.value.trim();
-        if (!matchValue) { urlInput.focus(); return; }
-      }
-
-      await window.__afStorage.addEntry({
-        selector,
-        fieldLabel: panel.querySelector('#af-fieldLabel').value.trim(),
-        name: panel.querySelector('#af-name').value.trim(),
-        value,
-        matchType: matchType === 'url-full' ? 'url-contains' : matchType,
-        matchValue,
-      });
-
-      hide();
-      window.__afContent?.refreshEntries();
-    });
+    const ctx = {
+      hostname: location.hostname,
+      // Full URL without #fragment (often transient SPA state). Stored as a 'url-contains' scope.
+      pageUrl: location.href.split('#')[0],
+      selector: element ? window.__afSelector.generate(element) : '',
+      draft: null, // add-view state kept while the list view is open
+    };
+    renderAddView(ctx);
 
     document.body.appendChild(host);
+    position();
+    window.addEventListener('scroll', scheduleReposition, { capture: true, passive: true });
+    window.addEventListener('resize', scheduleReposition, { passive: true });
 
     inertedSiblings = Array.from(document.body.children).filter(
       c => c !== host && !c.hasAttribute('inert')
@@ -227,168 +234,382 @@
       if (!host) return;
       if (e.target !== host && !host.contains(e.target) && lastPanelFocus) {
         const target = lastPanelFocus;
-        setTimeout(() => { if (host && document.contains(target)) target.focus(); }, 0);
+        setTimeout(() => { if (host && target.isConnected) target.focus(); }, 0);
       }
     };
     document.addEventListener('focusin', focusTrapHandler, true);
   }
 
-  function openFieldList(overlay, selector) {
-    overlay.querySelector('.af-sub')?.remove();
+  // ── add view ──────────────────────────────────────────────────────────────────
 
-    const sub = document.createElement('div');
-    sub.className = 'af-sub';
-    const box = document.createElement('div');
-    box.className = 'af-sub-panel';
-    sub.appendChild(box);
-    sub.addEventListener('mousedown', e => { if (e.target === sub) sub.remove(); });
+  function renderAddView(ctx) {
+    pop.replaceChildren();
+    pop.setAttribute('aria-label', 'מילוי חדש');
+    const d = ctx.draft || {};
 
-    async function render() {
-      const all = await window.__afStorage.loadEntries();
-      const list = all.filter(e => e.selector === selector);
-      box.innerHTML = '';
+    const head = h('div', 'af-head');
+    const headText = h('div', 'af-head-text');
+    const subtitle = h('div', 'af-sub', 'לשדה הזה');
+    headText.append(h('h2', 'af-title', 'מילוי חדש'), subtitle);
+    const closeBtn = button('af-icon', 'x', '', 'סגירה');
+    closeBtn.addEventListener('click', hide);
+    head.append(headText, closeBtn);
 
-      const h = document.createElement('h2');
-      h.textContent = '📋 מילויים שמורים לשדה זה';
-      const s = document.createElement('div');
-      s.className = 'af-sub-sel';
-      s.textContent = selector;
-      box.append(h, s);
+    const body = h('div', 'af-body');
 
-      if (!list.length) {
-        const empty = document.createElement('div');
-        empty.className = 'af-empty';
-        empty.textContent = 'אין מילויים שמורים לשדה זה.';
-        box.appendChild(empty);
+    const valueIn = textInput('הערך שימולא בשדה', d.value);
+    valueIn.dir = 'auto';
+    const nameIn = textInput('למשל: אישי, עבודה', d.name);
+
+    const scopeSel = h('select');
+    const scopes = [];
+    if (ctx.hostname) scopes.push(['domain', `האתר הזה · ${ctx.hostname}`]);
+    scopes.push(['url-full', 'הדף הזה בלבד'], ['global', 'כל האתרים'], ['url-contains', 'כתובת שמכילה…']);
+    scopes.forEach(([v, t]) => {
+      const opt = h('option', '', t);
+      opt.value = v;
+      scopeSel.appendChild(opt);
+    });
+    scopeSel.value = d.scope || scopes[0][0];
+    const pageHint = h('div', 'af-hint ltr', ctx.pageUrl);
+    pageHint.dir = 'ltr';
+    const urlIn = textInput('למשל: /admin/ או ?lang=he', d.urlPattern);
+    urlIn.dir = 'ltr';
+    urlIn.style.marginTop = '6px';
+    const urlHint = h('div', 'af-hint', 'מתאים לכל דף שהכתובת שלו מכילה את הטקסט (רגיש לאותיות גדולות/קטנות)');
+    const syncScope = (userTriggered) => {
+      pageHint.hidden = scopeSel.value !== 'url-full';
+      urlIn.hidden = urlHint.hidden = scopeSel.value !== 'url-contains';
+      if (userTriggered && !urlIn.hidden) urlIn.focus();
+      scheduleReposition();
+    };
+    scopeSel.addEventListener('change', () => syncScope(true));
+    syncScope(false);
+
+    const labelIn = textInput('למשל: אימייל, שם מלא', d.fieldLabel);
+    const selIn = textInput('', d.selector ?? ctx.selector);
+    selIn.classList.add('mono', 'ltr');
+    selIn.dir = 'ltr';
+    const badge = h('span', 'af-badge');
+    const selRow = h('div', 'af-sel-row');
+    selRow.append(selIn, badge);
+
+    const advanced = h('details');
+    const summary = h('summary');
+    summary.append(icon('chevron', 14), 'מתקדם');
+    advanced.append(summary,
+      label('שם השדה', 'לתצוגה בלבד'), labelIn,
+      label('CSS Selector'), selRow);
+    advanced.open = !!d.advancedOpen;
+    advanced.addEventListener('toggle', scheduleReposition);
+
+    body.append(
+      label('ערך'), valueIn,
+      label('שם לתצוגה', 'אופציונלי'), nameIn,
+      label('יופיע ב'), scopeSel, pageHint, urlIn, urlHint,
+      advanced);
+
+    const foot = h('div', 'af-foot');
+    const listBtn = button('af-btn ghost', 'list', 'שמורים לשדה ');
+    const listCount = h('span', 'af-count');
+    listBtn.appendChild(listCount);
+    const cancelBtn = button('af-btn secondary', '', 'ביטול');
+    const saveBtn = button('af-btn primary', '', 'שמירה');
+    foot.append(listBtn, h('div', 'af-spacer'), cancelBtn, saveBtn);
+
+    pop.append(head, body, foot);
+
+    // Field label + saved count come from storage; fall back to the page's own label text.
+    let entries = [];
+    const refreshSelectorInfo = () => {
+      const sel = selIn.value.trim();
+      const forSel = entries.filter(e => e.selector === sel);
+      listCount.textContent = `(${forSel.length})`;
+      updateBadge(sel, badge);
+    };
+    window.__afStorage.loadEntries().then(all => {
+      entries = all;
+      if (!ctx.draft) {
+        const existing = entries.find(e => e.selector === ctx.selector && e.fieldLabel);
+        labelIn.value = existing?.fieldLabel || guessLabel(anchorEl);
       }
+      subtitle.textContent = labelIn.value.trim() || 'לשדה הזה';
+      refreshSelectorInfo();
+    }).catch(() => {});
+    refreshSelectorInfo();
+    selIn.addEventListener('input', refreshSelectorInfo);
+    labelIn.addEventListener('input', () => { subtitle.textContent = labelIn.value.trim() || 'לשדה הזה'; });
 
-      list.forEach(entry => box.appendChild(buildRow(entry, render)));
+    const saveDraft = () => {
+      ctx.draft = {
+        value: valueIn.value, name: nameIn.value, scope: scopeSel.value, urlPattern: urlIn.value,
+        fieldLabel: labelIn.value, selector: selIn.value, advancedOpen: advanced.open,
+      };
+    };
 
-      const footer = document.createElement('div');
-      footer.className = 'af-sub-actions';
-      const close = document.createElement('button');
-      close.className = 'af-btn af-btn-cancel';
-      close.textContent = 'סגור';
-      close.addEventListener('click', () => sub.remove());
-      const full = document.createElement('button');
-      full.className = 'af-sub-link';
-      full.textContent = 'ניהול מלא ←';
-      full.addEventListener('click', () => {
-        chrome.runtime.sendMessage({ action: 'open-manager', selector });
-      });
-      footer.append(close, full);
-      box.appendChild(footer);
-    }
-
-    overlay.appendChild(sub);
-    render();
-  }
-
-  function buildRow(entry, rerender) {
-    const row = document.createElement('div');
-    const appliesHere = window.__afStorage.appliesToUrl(entry, location.href);
-    row.className = appliesHere ? 'af-row' : 'af-row off-page';
-    row.title = appliesHere ? '' : 'לא חל על הדף הנוכחי';
-
-    const cb = document.createElement('input');
-    cb.type = 'checkbox';
-    cb.checked = entry.enabled !== false;
-    cb.title = 'פעיל';
-    cb.addEventListener('change', async () => {
-      await window.__afStorage.updateEntry({ id: entry.id, enabled: cb.checked });
-      window.__afContent?.refreshEntries();
+    cancelBtn.addEventListener('click', hide);
+    listBtn.addEventListener('click', () => {
+      saveDraft();
+      renderListView(ctx, selIn.value.trim());
     });
 
-    const info = document.createElement('div');
-    info.className = 'af-row-info';
-    const n = document.createElement('div');
-    n.className = 'af-row-name';
-    n.textContent = entry.name || entry.value;
-    info.appendChild(n);
-    if (entry.name) {
-      const v = document.createElement('div');
-      v.className = 'af-row-val';
-      v.textContent = entry.value;
-      info.appendChild(v);
-    }
-    const scope = document.createElement('div');
-    scope.className = `af-row-scope${appliesHere ? ' here' : ''}`;
-    scope.textContent = scopeText(entry);
-    info.appendChild(scope);
+    saveBtn.addEventListener('click', async () => {
+      const selector = selIn.value.trim();
+      const value = valueIn.value.trim();
+      if (!selector) { advanced.open = true; selIn.focus(); return; }
+      if (!value) { valueIn.focus(); return; }
 
-    const edit = document.createElement('button');
-    edit.className = 'af-icon';
-    edit.textContent = '✏️';
-    edit.title = 'ערוך';
-    let nameIn = null;
-    let valIn = null;
-    edit.addEventListener('click', async () => {
-      if (!nameIn) {
-        info.innerHTML = '';
-        nameIn = document.createElement('input');
-        nameIn.type = 'text';
-        nameIn.placeholder = 'שם (אופציונלי)';
-        nameIn.value = entry.name || '';
-        valIn = document.createElement('input');
-        valIn.type = 'text';
-        valIn.placeholder = 'ערך';
-        valIn.value = entry.value || '';
-        info.append(nameIn, valIn);
-        edit.textContent = '💾';
-        edit.title = 'שמור';
-        const cancel = document.createElement('button');
-        cancel.className = 'af-icon';
-        cancel.textContent = '↩';
-        cancel.title = 'בטל עריכה';
-        cancel.addEventListener('click', rerender);
-        edit.after(cancel);
-        valIn.focus();
+      const choice = scopeSel.value;
+      let matchValue = '';
+      if (choice === 'domain') matchValue = ctx.hostname;
+      if (choice === 'url-full') matchValue = ctx.pageUrl;
+      if (choice === 'url-contains') {
+        matchValue = urlIn.value.trim();
+        if (!matchValue) { urlIn.focus(); return; }
+      }
+
+      saveBtn.disabled = true;
+      try {
+        await window.__afStorage.addEntry({
+          selector,
+          fieldLabel: labelIn.value.trim(),
+          name: nameIn.value.trim(),
+          value,
+          matchType: choice === 'url-full' ? 'url-contains' : choice,
+          matchValue,
+        });
+      } catch (err) {
+        console.error('[config-panel] save failed:', err);
+        saveBtn.disabled = false;
         return;
       }
-      const value = valIn.value.trim();
-      if (!value) { valIn.focus(); return; }
-      await window.__afStorage.updateEntry({ id: entry.id, name: nameIn.value.trim(), value });
+      hide();
       window.__afContent?.refreshEntries();
-      rerender();
     });
 
-    const del = document.createElement('button');
-    del.className = 'af-icon';
-    del.textContent = '🗑';
-    del.title = 'מחק';
-    del.addEventListener('click', async () => {
-      if (!confirm('למחוק מילוי זה?')) return;
-      await window.__afStorage.deleteEntry(entry.id);
-      window.__afContent?.refreshEntries();
-      rerender();
-    });
+    pop.onkeydown = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); hide(); }
+      else if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); saveBtn.click(); }
+    };
 
-    row.append(cb, info, edit, del);
-    return row;
+    setTimeout(() => valueIn.focus(), 0);
+    scheduleReposition();
   }
 
-  function scopeText(entry) {
-    const type = entry.matchType || 'global';
-    if (type === 'global') return '🌐 כל האתרים';
-    if (type === 'domain') return `🌍 ${entry.matchValue}`;
-    return `🔗 URL מכיל: ${entry.matchValue}`;
+  // Best-effort human label for a field: <label for>, wrapping <label>, aria-label, placeholder, name.
+  function guessLabel(el) {
+    if (!el) return '';
+    const clean = s => (s || '').replace(/\s+/g, ' ').replace(/[*:]\s*$/, '').trim().slice(0, 40);
+    try {
+      const fromLabels = el.labels?.[0]?.textContent;
+      if (clean(fromLabels)) return clean(fromLabels);
+    } catch {}
+    return clean(el.getAttribute?.('aria-label')) || clean(el.getAttribute?.('placeholder')) || clean(el.getAttribute?.('name'));
+  }
+
+  function label(text, optional) {
+    const l = h('div', 'af-label');
+    l.appendChild(h('span', '', text));
+    if (optional) l.appendChild(h('span', 'opt', optional));
+    return l;
+  }
+
+  function textInput(placeholder, value) {
+    const input = h('input');
+    input.type = 'text';
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    if (placeholder) input.placeholder = placeholder;
+    if (value) input.value = value;
+    return input;
   }
 
   function updateBadge(selector, badge) {
-    if (!selector.trim()) { badge.textContent = ''; return; }
-    const unique = window.__afSelector.isUnique(selector.trim());
+    badge.replaceChildren();
+    if (!selector) { badge.hidden = true; return; }
+    badge.hidden = false;
+    let unique = false;
+    try { unique = window.__afSelector.isUnique(selector); } catch {}
     badge.className = `af-badge ${unique ? 'ok' : 'warn'}`;
-    badge.textContent = unique ? '✓ ייחודי' : '⚠ לא ייחודי';
+    badge.append(icon(unique ? 'check' : 'x', 12), unique ? 'ייחודי' : 'לא ייחודי');
+    badge.title = unique ? 'ה-selector מתאים לשדה אחד בדיוק בדף' : 'ה-selector מתאים לכמה שדות (או לאף אחד) בדף';
   }
 
-  function escHtml(str) {
-    return String(str).replace(/[&<>"']/g, c =>
-      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
-    );
+  // ── list view (saved entries for one selector) ────────────────────────────────
+
+  function renderListView(ctx, selector) {
+    pop.replaceChildren();
+    pop.setAttribute('aria-label', 'מילויים שמורים לשדה');
+
+    const head = h('div', 'af-head');
+    const backBtn = button('af-icon', 'back', '', 'חזרה');
+    backBtn.addEventListener('click', () => renderAddView(ctx));
+    const headText = h('div', 'af-head-text');
+    const sub = h('div', 'af-sub mono', selector);
+    sub.title = selector;
+    headText.append(h('h2', 'af-title', 'מילויים שמורים לשדה'), sub);
+    const closeBtn = button('af-icon', 'x', '', 'סגירה');
+    closeBtn.addEventListener('click', hide);
+    head.append(backBtn, headText, closeBtn);
+
+    const rows = h('div', 'af-rows');
+
+    const foot = h('div', 'af-foot');
+    const manageBtn = button('af-btn secondary', 'external', 'פתיחה במנהל');
+    manageBtn.addEventListener('click', () => {
+      chrome.runtime.sendMessage({ action: 'open-manager', selector });
+    });
+    const doneBtn = button('af-btn ghost', '', 'חזרה למילוי חדש');
+    doneBtn.addEventListener('click', () => renderAddView(ctx));
+    foot.append(manageBtn, h('div', 'af-spacer'), doneBtn);
+
+    pop.append(head, rows, foot);
+
+    let editingId = null;
+    async function render() {
+      const all = await window.__afStorage.loadEntries();
+      const list = all.filter(e => e.selector === selector);
+      rows.replaceChildren();
+      if (!list.length) rows.appendChild(h('div', 'af-empty', 'אין עדיין מילויים שמורים לשדה הזה.'));
+      list.forEach(entry => rows.appendChild(buildRow(entry, editingId === entry.id, {
+        startEdit: () => { editingId = entry.id; render(); },
+        endEdit: () => { editingId = null; render(); },
+        rerender: render,
+      })));
+      scheduleReposition();
+    }
+
+    pop.onkeydown = (e) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      if (editingId) { editingId = null; render(); } else renderAddView(ctx);
+    };
+
+    render();
+    setTimeout(() => backBtn.focus(), 0);
+  }
+
+  function buildRow(entry, editing, { startEdit, endEdit, rerender }) {
+    const appliesHere = window.__afStorage.appliesToUrl(entry, location.href);
+    const row = h('div', 'af-row');
+    if (!appliesHere) { row.classList.add('off-page'); row.title = 'לא חל על הדף הנוכחי'; }
+    if (entry.enabled === false) row.classList.add('disabled');
+
+    const sw = h('label', 'af-switch');
+    sw.title = 'פעיל';
+    const cb = h('input');
+    cb.type = 'checkbox';
+    cb.checked = entry.enabled !== false;
+    cb.setAttribute('aria-label', 'פעיל');
+    cb.addEventListener('change', async () => {
+      row.classList.toggle('disabled', !cb.checked);
+      await window.__afStorage.updateEntry({ id: entry.id, enabled: cb.checked });
+      window.__afContent?.refreshEntries();
+    });
+    sw.append(cb, h('span'));
+
+    const info = h('div', 'af-row-info');
+    const actions = h('div', 'af-row-actions');
+
+    if (editing) {
+      const edit = h('div', 'af-row-edit');
+      const nameIn = textInput('שם לתצוגה (אופציונלי)', entry.name);
+      const valIn = textInput('ערך', entry.value);
+      valIn.dir = 'auto';
+      edit.append(nameIn, valIn);
+      info.appendChild(edit);
+      const save = async () => {
+        const value = valIn.value.trim();
+        if (!value) { valIn.focus(); return; }
+        await window.__afStorage.updateEntry({ id: entry.id, name: nameIn.value.trim(), value });
+        window.__afContent?.refreshEntries();
+        endEdit();
+      };
+      edit.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); save(); }
+      });
+      const saveBtn = button('af-icon', 'check', '', 'שמירה');
+      saveBtn.addEventListener('click', save);
+      const cancelBtn = button('af-icon', 'x', '', 'ביטול עריכה');
+      cancelBtn.addEventListener('click', endEdit);
+      actions.append(saveBtn, cancelBtn);
+      setTimeout(() => valIn.focus(), 0);
+    } else {
+      info.appendChild(h('div', 'af-row-name', entry.name || entry.value));
+      if (entry.name) info.appendChild(h('div', 'af-row-val', entry.value));
+      const scope = h('div', `af-row-scope${appliesHere ? ' here' : ''}`);
+      const [scopeIcon, scopeText] = describeScope(entry);
+      scope.append(icon(scopeIcon, 12), h('span', '', scopeText));
+      info.appendChild(scope);
+
+      const editBtn = button('af-icon', 'pencil', '', 'עריכה');
+      editBtn.addEventListener('click', startEdit);
+      // Two-step delete instead of confirm(): first click arms the button, second deletes.
+      const delBtn = button('af-icon danger', 'trash', '', 'מחיקה');
+      let armTimer = 0;
+      delBtn.addEventListener('click', async () => {
+        if (!delBtn.classList.contains('confirm')) {
+          delBtn.classList.add('confirm');
+          delBtn.append('למחוק?');
+          armTimer = setTimeout(() => rerender(), 3000);
+          return;
+        }
+        clearTimeout(armTimer);
+        await window.__afStorage.deleteEntry(entry.id);
+        window.__afContent?.refreshEntries();
+        rerender();
+      });
+      actions.append(editBtn, delBtn);
+    }
+
+    row.append(sw, info, actions);
+    return row;
+  }
+
+  function describeScope(entry) {
+    const type = entry.matchType || 'global';
+    if (type === 'global') return ['globe', 'כל האתרים'];
+    if (type === 'domain') return ['site', entry.matchValue];
+    return ['link', `כתובת מכילה: ${entry.matchValue}`];
+  }
+
+  // ── positioning ───────────────────────────────────────────────────────────────
+
+  function position() {
+    if (!pop) return;
+    const viewW = document.documentElement.clientWidth;
+    const viewH = document.documentElement.clientHeight;
+    const pr = pop.getBoundingClientRect();
+    const rect = anchorEl?.isConnected ? anchorEl.getBoundingClientRect() : null;
+    const inView = rect && rect.width + rect.height > 0 && rect.bottom > 0 && rect.top < viewH;
+
+    let top;
+    let left;
+    if (!inView || viewW < NARROW_VIEWPORT) {
+      top = (viewH - pr.height) / 2;
+      left = (viewW - pr.width) / 2;
+    } else {
+      top = rect.bottom + POP_GAP;
+      if (top + pr.height > viewH - 8 && rect.top - pr.height - POP_GAP >= 8) top = rect.top - pr.height - POP_GAP;
+      const isRtl = getComputedStyle(anchorEl).direction === 'rtl';
+      left = isRtl ? rect.right - pr.width : rect.left;
+    }
+    top = Math.max(8, Math.min(top, viewH - pr.height - 8));
+    left = Math.max(8, Math.min(left, viewW - pr.width - 8));
+    pop.style.top = `${top}px`;
+    pop.style.left = `${left}px`;
+  }
+
+  function scheduleReposition() {
+    if (rafId) return;
+    rafId = requestAnimationFrame(() => { rafId = 0; position(); });
   }
 
   function hide() {
+    if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
     if (!host) return;
+    window.removeEventListener('scroll', scheduleReposition, { capture: true });
+    window.removeEventListener('resize', scheduleReposition);
     if (focusTrapHandler) {
       document.removeEventListener('focusin', focusTrapHandler, true);
       focusTrapHandler = null;
@@ -398,6 +619,8 @@
     lastPanelFocus = null;
     host.remove();
     host = null;
+    pop = null;
+    anchorEl = null;
   }
 
   window.__afConfig = { show, hide };

@@ -1,11 +1,10 @@
-// Collapsible snippets section at the top of the manager (key af_snippets).
+// Snippets view of the manager (key af_snippets): add form, list, inline edit, delete with undo.
 // Snippets are plain storage (no __afStorage helper), shared with content/snippet.js.
 // Adds to window.__afMgr: loadSnippets(), saveSnippets(list)  (also used by backup.js).
 
 (() => {
-  const { el, showToast } = window.__afMgr;
+  const { el, iconButton, copyButton, emptyState, showToast } = window.__afMgr;
   const SNIPPET_KEY = 'af_snippets';
-  const UI_KEY = 'af_ui_snippets_open';
 
   async function loadSnippets() {
     const data = await chrome.storage.local.get(SNIPPET_KEY);
@@ -18,19 +17,26 @@
 
   let editingId = null; // snippet row currently open for editing
 
+  function input(value, cls, dir) {
+    const i = el('input', cls);
+    i.type = 'text';
+    i.dir = dir;
+    i.spellcheck = false;
+    i.autocomplete = 'off';
+    i.value = value;
+    return i;
+  }
+
   function buildEditRow(snippet) {
-    const row = el('div', 'af-snippet-row');
-    const triggerIn = el('input', 'af-input');
-    const valueIn = el('input', 'af-input');
-    [triggerIn.type, valueIn.type] = ['text', 'text'];
-    [triggerIn.dir, valueIn.dir] = ['ltr', 'ltr'];
-    triggerIn.value = snippet.trigger;
-    valueIn.value = snippet.value;
-    triggerIn.style.flex = '0 0 150px';
+    const row = el('div', 'snippet-row editing');
+    const triggerIn = input(snippet.trigger, 'input mono', 'ltr');
+    const valueIn = input(snippet.value, 'input', 'auto');
 
     const close = () => { editingId = null; render(); };
-    const saveBtn = el('button', 'af-btn primary', 'שמור');
-    const cancelBtn = el('button', 'af-btn', 'בטל');
+    const saveBtn = el('button', 'btn primary', 'שמירה');
+    saveBtn.type = 'button';
+    const cancelBtn = el('button', 'btn ghost', 'ביטול');
+    cancelBtn.type = 'button';
     cancelBtn.addEventListener('click', close);
     saveBtn.addEventListener('click', async () => {
       const trigger = triggerIn.value.trim();
@@ -53,39 +59,46 @@
       if (e.key === 'Escape') close();
       else if (e.key === 'Enter' && e.target.tagName === 'INPUT') saveBtn.click();
     });
-    row.append(triggerIn, valueIn, saveBtn, cancelBtn);
+    row.append(triggerIn, valueIn, cancelBtn, saveBtn);
     setTimeout(() => valueIn.focus(), 0);
+    return row;
+  }
+
+  function buildRow(snippet) {
+    const row = el('div', 'snippet-row');
+    const trigger = el('span', 'snippet-trigger', snippet.trigger);
+    trigger.title = snippet.trigger;
+    const value = el('span', 'snippet-value', snippet.value);
+    value.title = snippet.value;
+
+    const editBtn = iconButton('pencil', 'עריכה');
+    editBtn.addEventListener('click', () => { editingId = snippet.id; render(); });
+    const delBtn = iconButton('trash', 'מחיקה', 'danger');
+    delBtn.addEventListener('click', async () => {
+      await saveSnippets((await loadSnippets()).filter(s => s.id !== snippet.id));
+      showToast(`הקיצור ${snippet.trigger} נמחק`, async () => {
+        const current = await loadSnippets();
+        if (!current.some(s => s.id === snippet.id)) await saveSnippets([...current, snippet]);
+      });
+    });
+    const actions = el('div', 'entry-actions');
+    actions.append(copyButton(() => snippet.value), editBtn, delBtn);
+    row.append(trigger, value, actions);
     return row;
   }
 
   async function render() {
     const snippets = await loadSnippets();
+    document.getElementById('af-nav-snippets').textContent = snippets.length || '';
     const listEl = document.getElementById('af-snippet-list');
-    document.getElementById('af-snip-count').textContent = snippets.length ? `(${snippets.length})` : '';
-    listEl.innerHTML = '';
-    if (!snippets.length) listEl.appendChild(el('div', 'af-snippet-empty', 'אין קיצורים עדיין.'));
-
-    snippets.forEach(snippet => {
-      if (snippet.id === editingId) {
-        listEl.appendChild(buildEditRow(snippet));
-        return;
-      }
-      const row = el('div', 'af-snippet-row');
-      const editBtn = el('button', 'af-icon-btn', '✏️');
-      editBtn.title = 'ערוך';
-      editBtn.addEventListener('click', () => { editingId = snippet.id; render(); });
-      const delBtn = el('button', 'af-icon-btn del', '🗑');
-      delBtn.title = 'מחק';
-      delBtn.addEventListener('click', async () => {
-        await saveSnippets((await loadSnippets()).filter(s => s.id !== snippet.id));
-        showToast(`הקיצור ${snippet.trigger} נמחק`, async () => {
-          const current = await loadSnippets();
-          if (!current.some(s => s.id === snippet.id)) await saveSnippets([...current, snippet]);
-        });
-      });
-      row.append(el('span', 'af-snippet-trigger', snippet.trigger), el('span', 'af-snippet-value', snippet.value), editBtn, delBtn);
-      listEl.appendChild(row);
-    });
+    listEl.replaceChildren();
+    if (!snippets.length) {
+      listEl.appendChild(emptyState('zap', 'עדיין אין קיצורים', 'הוסיפו קיצור למעלה, למשל @TZ למספר תעודת זהות.'));
+      return;
+    }
+    const card = el('div', 'card snippet-list');
+    snippets.forEach(snippet => card.appendChild(snippet.id === editingId ? buildEditRow(snippet) : buildRow(snippet)));
+    listEl.appendChild(card);
   }
 
   async function addSnippet(event) {
@@ -94,7 +107,8 @@
     const valueIn = document.getElementById('af-snip-value');
     const trigger = triggerIn.value.trim();
     const value = valueIn.value.trim();
-    if (!trigger || !value) return;
+    if (!trigger) { triggerIn.focus(); return; }
+    if (!value) { valueIn.focus(); return; }
     const all = await loadSnippets();
     all.push({ id: `s_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, trigger, value, created: Date.now() });
     await saveSnippets(all);
@@ -103,15 +117,7 @@
     triggerIn.focus();
   }
 
-  async function init() {
-    const details = document.getElementById('af-snippets-section');
-    try {
-      const saved = (await chrome.storage.local.get(UI_KEY))[UI_KEY];
-      details.open = saved !== false; // open by default
-    } catch (err) {
-      console.error('[snippets] reading UI state failed:', err);
-    }
-    details.addEventListener('toggle', () => chrome.storage.local.set({ [UI_KEY]: details.open }));
+  function init() {
     document.getElementById('af-snippet-form').addEventListener('submit', addSnippet);
     chrome.storage.onChanged.addListener((changes, area) => {
       // An open editor would be wiped by a re-render; it re-renders itself on close.

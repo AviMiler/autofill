@@ -3,7 +3,16 @@
 See [AGENT_CONTEXT.md](AGENT_CONTEXT.md) for what the project is.
 
 ## Runtime dependencies
-**None.** This project has no `package.json` and no third-party JS.
+**No JS dependencies.** This project has no `package.json` and no third-party JS.
+
+Bundled assets:
+
+| Asset | Source | License |
+|-------|--------|---------|
+| [manager/fonts/](manager/fonts/) `rubik-hebrew.woff2`, `rubik-latin.woff2` | Rubik variable font, `@fontsource-variable/rubik@5.1.0` (npm) | SIL OFL 1.1 — [manager/fonts/OFL.txt](manager/fonts/OFL.txt) |
+| [content/icons.js](content/icons.js) | Icon shapes drawn in the Lucide style (thin stroke, 24×24) | ISC-style (Lucide); inline, no package |
+
+The font is only used by the manager page; injected UI inside web pages uses the system font (no font loading into third-party pages).
 
 | Surface | Uses |
 |---------|------|

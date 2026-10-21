@@ -2,7 +2,7 @@
 // Exposes window.__afContent for callbacks.
 //
 // Depends on (loaded before this file):
-//   __afStorage, __afSelector, __afFill, __afDropdown, __afConfig, __afSnippet
+//   __afStorage, __afSelector, __afFill, __afIcons, __afDropdown, __afConfig, __afSnippet
 
 (() => {
   if (window.__afContentLoaded) return;
@@ -115,7 +115,7 @@
       el,
       matches.map(s => ({ name: s.trigger, value: s.value })),
       value => window.__afFill.replaceTextBeforeCursor(el, token, value),
-      { suppressAutoHideOnInput: true }
+      { suppressAutoHideOnInput: true, highlight: token }
     );
     snippetModeActive = true;
   }
