@@ -10,7 +10,8 @@ both entries and snippets. From a normal web page it opens pre-filtered to that 
 There is no saved-credential / username-password feature and no HTTP Basic Auth handling — both were removed.
 All UI surfaces share one minimal neutral design (black/white accent, thin SVG icons from `content/icons.js`,
 light/dark via `prefers-color-scheme`); the manager uses the bundled Rubik font. Full spec + rationale of the redesign:
-[docs/REDESIGN-v1.5.md](docs/REDESIGN-v1.5.md).
+[docs/REDESIGN-v1.5.md](docs/REDESIGN-v1.5.md). User guide (MP4 + interactive HTML, regenerated from the real
+extension by `tests/tutorial/record.js`): [docs/tutorial/](docs/tutorial/).
 Load as unpacked extension from this directory.
 
 ---

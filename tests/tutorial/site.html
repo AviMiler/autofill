@@ -1,0 +1,74 @@
+<!doctype html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="utf-8">
+<title>לומדה · הרשמה לקורס</title>
+<!-- Fictional demo site for the AutoFill tutorial video (served from the repo root, so fonts resolve). -->
+<style>
+  @font-face { font-family: 'Rubik'; font-weight: 300 900; src: url(/manager/fonts/rubik-hebrew.woff2) format('woff2-variations'); unicode-range: U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F; }
+  @font-face { font-family: 'Rubik'; font-weight: 300 900; src: url(/manager/fonts/rubik-latin.woff2) format('woff2-variations'); unicode-range: U+0000-00FF, U+2000-206F; }
+  :root { --brand: #3b5bdb; --ink: #1f2937; --muted: #6b7280; --line: #e5e7eb; --bg: #f5f6fa; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 'Rubik', system-ui, sans-serif; color: var(--ink); background: var(--bg); }
+  header { display: flex; align-items: center; gap: 32px; height: 64px; padding: 0 48px; background: #fff; border-bottom: 1px solid var(--line); }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 20px; color: var(--brand); }
+  .logo i { width: 28px; height: 28px; border-radius: 8px; background: var(--brand); display: inline-block; position: relative; }
+  .logo i::after { content: ''; position: absolute; inset: 8px 7px; border: 2.5px solid #fff; border-top: none; border-left: none; transform: rotate(45deg) translate(-2px, -2px); width: 6px; height: 11px; }
+  nav { display: flex; gap: 24px; color: var(--muted); font-size: 14px; }
+  nav b { color: var(--ink); font-weight: 500; }
+  .user { margin-inline-start: auto; display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 14px; }
+  .user span { width: 32px; height: 32px; border-radius: 50%; background: #e0e7ff; color: var(--brand); display: grid; place-items: center; font-weight: 600; }
+  main { display: grid; grid-template-columns: 1fr 340px; gap: 28px; max-width: 1080px; margin: 32px auto; padding: 0 32px; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 28px 32px; }
+  h1 { margin: 0 0 4px; font-size: 24px; }
+  .sub { margin: 0 0 22px; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 18px; }
+  .full { grid-column: 1 / -1; }
+  label { display: block; font-size: 13.5px; font-weight: 500; margin-bottom: 6px; }
+  input, textarea { width: 100%; height: 42px; padding: 0 12px; border: 1px solid #d1d5db; border-radius: 10px; font: inherit; background: #fff; color: var(--ink); outline: none; }
+  textarea { height: 76px; padding: 10px 12px; resize: none; }
+  input:focus, textarea:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(59, 91, 219, .15); }
+  .terms { display: flex; align-items: center; gap: 8px; margin: 18px 0; font-size: 14px; color: var(--muted); }
+  .terms input { width: 16px; height: 16px; }
+  button.submit { height: 44px; padding: 0 28px; border: none; border-radius: 10px; background: var(--brand); color: #fff; font: 600 15px 'Rubik', system-ui; }
+  aside .card { padding: 24px; }
+  .thumb { height: 140px; border-radius: 12px; margin-bottom: 16px; background: linear-gradient(135deg, #c7d2fe, #e0e7ff 60%, #f5f3ff); display: grid; place-items: center; color: var(--brand); font-weight: 700; font-size: 18px; }
+  .row { display: flex; justify-content: space-between; padding: 9px 0; border-top: 1px solid var(--line); font-size: 14px; }
+  .row:first-of-type { border-top: none; }
+  .row span:first-child { color: var(--muted); }
+  .price { font-size: 22px; font-weight: 700; margin-top: 8px; }
+</style>
+</head>
+<body>
+  <header>
+    <div class="logo"><i></i>לומדה</div>
+    <nav><b>קורסים</b><span>מסלולים</span><span>מרצים</span><span>צור קשר</span></nav>
+    <div class="user">אורח<span>א</span></div>
+  </header>
+  <main>
+    <section class="card">
+      <h1>הרשמה לקורס</h1>
+      <p class="sub">ממלאים פרטים ומבטיחים מקום. נחזור אליכם תוך יום עסקים.</p>
+      <form class="grid" onsubmit="return false" autocomplete="off">
+        <div><label for="full-name">שם מלא</label><input id="full-name" name="fullName"></div>
+        <div><label for="email">אימייל</label><input id="email" name="email" type="email"></div>
+        <div><label for="phone">טלפון נייד</label><input id="phone" name="phone" type="tel" dir="ltr" style="text-align:right"></div>
+        <div><label for="tz">תעודת זהות</label><input id="tz" name="tz" inputmode="numeric"></div>
+        <div class="full"><label for="city">עיר מגורים</label><input id="city" name="city"></div>
+        <div class="full"><label for="notes">הערות למרצה</label><textarea id="notes" name="notes"></textarea></div>
+      </form>
+      <div class="terms"><input type="checkbox" id="terms"><label for="terms" style="margin:0;font-weight:400">קראתי ואני מסכים/ה לתקנון</label></div>
+      <button class="submit" type="button">שליחת הרשמה</button>
+    </section>
+    <aside>
+      <div class="card">
+        <div class="thumb">עיצוב ממשקים 101</div>
+        <div class="row"><span>מועד פתיחה</span><span>1.12.2026</span></div>
+        <div class="row"><span>מפגשים</span><span>12 · אונליין</span></div>
+        <div class="row"><span>מרצה</span><span>נועה ברק</span></div>
+        <div class="price">₪1,290</div>
+      </div>
+    </aside>
+  </main>
+</body>
+</html>

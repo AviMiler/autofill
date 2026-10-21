@@ -2,6 +2,9 @@
 
 See [AGENT_CONTEXT.md](AGENT_CONTEXT.md) for current state and [ARCHITECTURE.md](ARCHITECTURE.md) for design.
 
+## 2026-10-21 — User guide
+- **Added:** [docs/tutorial/](docs/tutorial/) — `autofill-tutorial.mp4` (~4 min, 1280×800) and a self-contained interactive `autofill-tutorial.html`, 7 chapters on a fictional site. Generated from the real extension by [tests/tutorial/](tests/tutorial/) (`record.js` video/frames modes, `build-html.js`).
+
 ## v1.5.0 — 2026-10-21 — UI redesign
 Full spec, decisions and per-file notes: [docs/REDESIGN-v1.5.md](docs/REDESIGN-v1.5.md).
 - **Changed (all UI):** one minimal neutral design system — black/white accent, 1px lines, light/dark via `prefers-color-scheme`; emoji replaced by inline SVG icons from the new [content/icons.js](content/icons.js) (`window.__afIcons`, content-script load order now `… fill → icons → dropdown …`).
