@@ -220,6 +220,10 @@ The visibility-check (`isVisible() && getAnchor() === el`) prevents flicker on f
 
 ---
 
+## Automated UI checks
+- `tests/ui-smoke.js` + `tests/fixture.html` — Playwright smoke test of the dropdown, snippets, add-entry popover and manager, light + dark (usage in the file header; spec: [docs/REDESIGN-v1.5.md](docs/REDESIGN-v1.5.md) §7).
+- `tests/tutorial/` — regenerates the user guide in [docs/tutorial/](docs/tutorial/); run it again after any UI change.
+
 ## Testing Each Module in Isolation
 
 ```js

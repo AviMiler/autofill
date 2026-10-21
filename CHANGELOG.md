@@ -2,6 +2,9 @@
 
 See [AGENT_CONTEXT.md](AGENT_CONTEXT.md) for current state and [ARCHITECTURE.md](ARCHITECTURE.md) for design.
 
+## 2026-10-21 — Docs sync
+- **Changed:** `README.md` rewritten (was an empty UTF-16 stub): install, usage, links to the guide and the technical docs. [CLAUDE.md](CLAUDE.md) gained an "Automated UI checks" section (`tests/ui-smoke.js`, `tests/tutorial/`); [AGENT_CONTEXT.md](AGENT_CONTEXT.md) lists the user guide and tests under Last Changes. v1.5.0 branch merged into `main`.
+
 ## 2026-10-21 — User guide
 - **Added:** [docs/tutorial/](docs/tutorial/) — `autofill-tutorial.mp4` (~4 min, 1280×800) and a self-contained interactive `autofill-tutorial.html`, 7 chapters on a fictional site. Generated from the real extension by [tests/tutorial/](tests/tutorial/) (`record.js` video/frames modes, `build-html.js`).
 
